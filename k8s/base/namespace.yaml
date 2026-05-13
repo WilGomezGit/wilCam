@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wilcam
+  labels:
+    app.kubernetes.io/name: wilcam
+    app.kubernetes.io/part-of: wilcam-platform

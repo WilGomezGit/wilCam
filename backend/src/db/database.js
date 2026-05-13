@@ -101,6 +101,73 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
     CREATE INDEX IF NOT EXISTS idx_events_reviewed ON events(reviewed);
     CREATE INDEX IF NOT EXISTS idx_cloud_uploads_status ON cloud_uploads(status);
+
+    -- ── Multi-tenant organizations ──────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS organizations (
+      id         TEXT PRIMARY KEY,
+      name       TEXT NOT NULL,
+      slug       TEXT UNIQUE NOT NULL,
+      owner_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      plan       TEXT NOT NULL DEFAULT 'free' CHECK(plan IN ('free','pro','enterprise')),
+      active     INTEGER NOT NULL DEFAULT 1,
+      settings   TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS org_members (
+      id         TEXT PRIMARY KEY,
+      org_id     TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role       TEXT NOT NULL DEFAULT 'viewer' CHECK(role IN ('owner','admin','operator','viewer')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(org_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS org_cameras (
+      id         TEXT PRIMARY KEY,
+      org_id     TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      camera_id  TEXT NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(org_id, camera_id)
+    );
+
+    -- ── Push notifications ──────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token      TEXT UNIQUE NOT NULL,
+      platform   TEXT NOT NULL DEFAULT 'android' CHECK(platform IN ('android','ios','web')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS camera_subscriptions (
+      id         TEXT PRIMARY KEY,
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      camera_id  TEXT NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(user_id, camera_id)
+    );
+
+    -- ── Smart recordings (AI-triggered clips) ───────────────────────────────
+    CREATE TABLE IF NOT EXISTS smart_clips (
+      id               TEXT PRIMARY KEY,
+      camera_id        TEXT NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
+      event_id         TEXT REFERENCES events(id) ON DELETE SET NULL,
+      recording_id     TEXT REFERENCES recordings(id) ON DELETE SET NULL,
+      filepath         TEXT,
+      start_offset_sec INTEGER DEFAULT 10,
+      end_offset_sec   INTEGER DEFAULT 30,
+      status           TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','processing','done','failed')),
+      error_msg        TEXT,
+      cloud_url        TEXT,
+      created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_smart_clips_camera ON smart_clips(camera_id);
+    CREATE INDEX IF NOT EXISTS idx_smart_clips_status ON smart_clips(status);
   `);
 
   // Seed default admin user if none exists

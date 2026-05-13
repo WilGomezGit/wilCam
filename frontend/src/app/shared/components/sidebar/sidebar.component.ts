@@ -249,6 +249,7 @@ export class SidebarComponent {
     { id: 'events', label: 'Eventos', route: '/events', icon: bellIcon(), badge: '12' },
     { id: 'map', label: 'Mapa', route: '/map', icon: mapIcon() },
     { id: 'heatmap', label: 'Heatmap', route: '/heatmap', icon: flameIcon() },
+    { id: 'analytics', label: 'Analytics IA', route: '/analytics', icon: analyticsIcon() },
     { id: 'settings', label: 'Configuración', route: '/settings', icon: cogIcon() },
   ];
 }
@@ -263,3 +264,4 @@ function bellIcon() { return svg('M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 2
 function mapIcon() { return svg('M9 4v16M15 8v12M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z'); }
 function flameIcon() { return svg('M15 14a3 3 0 1 1-6 0c0-2 2-3 1-6 3 1 6 4 5 6zM12 22c5 0 8-3 8-7 0-5-4-7-4-12-3 3-9 5-9 12 0 4 3 7 5 7z'); }
 function cogIcon() { return svg('M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM19.4 15a1.6 1.6 0 0 0 .3 1.7l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z'); }
+function analyticsIcon() { return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-4"/></svg>`; }

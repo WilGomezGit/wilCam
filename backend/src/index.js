@@ -15,6 +15,8 @@ const jwt = require('jsonwebtoken');
 const db = require('./db/database');
 const socketService = require('./services/socket.service');
 const ffmpegService = require('./services/ffmpeg.service');
+const redisService = require('./services/redis.service');
+const webrtcService = require('./services/webrtc.service');
 const { errorHandler, notFound } = require('./middleware/error.middleware');
 
 const app = express();
@@ -104,6 +106,13 @@ app.use('/api/ptz', require('./routes/ptz'));
 app.use('/api/recordings', require('./routes/recordings'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/onvif', require('./routes/onvif'));
+// ── New v2 routes ─────────────────────────────────────────────────
+app.use('/api/ai', require('./routes/ai'));
+app.use('/api/cloud', require('./routes/cloud'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/organizations', require('./routes/organizations'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/webrtc', require('./routes/webrtc'));
 
 // ── Health check ─────────────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -188,10 +197,29 @@ async function autoStartStreams() {
 
 // ── Start server ──────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000');
-server.listen(PORT, () => {
-  console.log(`\n🎥 WilCam Backend v1.0 — Puerto ${PORT}`);
+server.listen(PORT, async () => {
+  console.log(`\n🎥 WilCam Backend v2.0 — Puerto ${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/health`);
   console.log(`   API:    http://localhost:${PORT}/api\n`);
+
+  // Connect Redis (non-blocking)
+  redisService.connect().catch(() => {});
+
+  // Start background workers
+  try {
+    require('./workers/s3.worker').start();
+    require('./workers/notification.worker').start();
+    require('./workers/smart-recording.worker').start();
+    require('./workers/ai-detection.worker').start();
+  } catch (e) {
+    console.warn('[Workers] Some workers failed to start:', e.message);
+  }
+
+  // Init WebRTC (non-blocking)
+  if (process.env.ENABLE_WEBRTC === 'true') {
+    webrtcService.init().catch(e => console.warn('[WebRTC] Init error:', e.message));
+  }
+
   if (process.env.AUTO_START_STREAMS !== 'false') {
     setTimeout(autoStartStreams, 1000);
   }

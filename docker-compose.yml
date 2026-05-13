@@ -1,0 +1,115 @@
+version: '3.9'
+
+services:
+  # ── Redis ──────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: wilcam-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - wilcam-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (Node.js) ──────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    container_name: wilcam-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_PATH: /data/wilcam.db
+      HLS_OUTPUT_DIR: /data/hls
+      RECORDINGS_DIR: /data/recordings
+      SNAPSHOTS_DIR: /data/snapshots
+      JWT_SECRET: ${JWT_SECRET:-wilcam_change_in_production_jwt}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-wilcam_change_in_production_refresh}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ai-service:8000
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+      FCM_SERVER_KEY: ${FCM_SERVER_KEY:-}
+      AUTO_START_STREAMS: 'false'
+    volumes:
+      - wilcam_data:/data
+    ports:
+      - "3000:3000"
+    networks:
+      - wilcam-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  # ── AI Microservice (Python/FastAPI) ───────────────────────────────────
+  ai-service:
+    build:
+      context: ./ai-service
+    container_name: wilcam-ai
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      BACKEND_URL: http://backend:3000
+      MODEL_PATH: /models/yolov8n.onnx
+      CONFIDENCE_THRESHOLD: ${AI_CONFIDENCE:-0.5}
+      DEVICE: ${AI_DEVICE:-cpu}
+    volumes:
+      - ai_models:/models
+    networks:
+      - wilcam-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 15s
+      start_period: 60s
+      retries: 3
+
+  # ── Frontend (Angular/Nginx) ───────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      target: runtime
+    container_name: wilcam-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - wilcam-net
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis_data:
+  wilcam_data:
+  ai_models:
+
+networks:
+  wilcam-net:
+    driver: bridge
