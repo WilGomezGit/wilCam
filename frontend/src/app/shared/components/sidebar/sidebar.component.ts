@@ -1,7 +1,8 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { WilcamLogoComponent } from '../wilcam-logo/wilcam-logo.component';
+import { AuthService } from '../../../core/services/auth.service';
 
 interface NavItem {
   id: string;
@@ -16,14 +17,23 @@ interface NavItem {
   standalone: true,
   imports: [CommonModule, RouterLink, RouterLinkActive, WilcamLogoComponent],
   template: `
-    <aside class="sidebar" [class.collapsed]="collapsed">
+    <aside class="sidebar" [class.collapsed]="collapsed()">
       <!-- Logo -->
       <div class="sidebar-logo">
-        <wc-logo [size]="14" [collapsed]="collapsed" [sub]="collapsed ? null : 'NVR · v4.2'"></wc-logo>
+        <wc-logo [size]="14" [collapsed]="collapsed()" [sub]="collapsed() ? null : 'NVR · v1.0'"></wc-logo>
+        <button class="collapse-btn" (click)="collapsed.set(!collapsed())" [title]="collapsed() ? 'Expandir' : 'Colapsar'">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            @if (collapsed()) {
+              <path d="M9 18l6-6-6-6"/>
+            } @else {
+              <path d="M15 18l-6-6 6-6"/>
+            }
+          </svg>
+        </button>
       </div>
 
       <!-- Search (expanded only) -->
-      @if (!collapsed) {
+      @if (!collapsed()) {
         <div class="sidebar-search">
           <span class="icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -39,10 +49,10 @@ interface NavItem {
       <nav>
         @for (item of navItems; track item.id) {
           <a [routerLink]="item.route" routerLinkActive="active" class="sb-item"
-             [style.justify-content]="collapsed ? 'center' : 'flex-start'"
-             [title]="collapsed ? item.label : ''">
+             [style.justify-content]="collapsed() ? 'center' : 'flex-start'"
+             [title]="collapsed() ? item.label : ''">
             <span class="nav-icon" [innerHTML]="item.icon"></span>
-            @if (!collapsed) {
+            @if (!collapsed()) {
               <span>{{ item.label }}</span>
               @if (item.badge) {
                 <span class="mono nav-badge">{{ item.badge }}</span>
@@ -54,7 +64,7 @@ interface NavItem {
 
       <!-- Footer -->
       <div class="sidebar-footer">
-        @if (!collapsed) {
+        @if (!collapsed()) {
           <div class="system-status panel">
             <div style="display:flex;align-items:center;gap:6px;color:var(--fg-2);margin-bottom:6px">
               <span style="width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px oklch(0.78 0.17 155/0.6)"></span>
@@ -73,15 +83,32 @@ interface NavItem {
           </div>
         }
 
-        <div class="user-row" [style.justify-content]="collapsed ? 'center' : 'flex-start'">
-          <div class="user-avatar">WR</div>
-          @if (!collapsed) {
-            <div>
-              <div style="font-size:12px;font-weight:600">Wilfredo R.</div>
-              <div style="font-size:10px;color:var(--fg-3)">Administrador</div>
+        <div class="user-row" [style.justify-content]="collapsed() ? 'center' : 'flex-start'">
+          <div class="user-avatar">{{ userInitials() }}</div>
+          @if (!collapsed()) {
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ auth.user()?.name || 'Usuario' }}</div>
+              <div style="font-size:10px;color:var(--fg-3);text-transform:capitalize">{{ auth.user()?.role || '—' }}</div>
             </div>
+            <button class="logout-btn" (click)="auth.logout()" title="Cerrar sesión">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
           }
         </div>
+
+        @if (collapsed()) {
+          <button class="logout-btn" (click)="auth.logout()" title="Cerrar sesión" style="align-self:center;margin-top:4px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
+        }
       </div>
     </aside>
   `,
@@ -105,7 +132,36 @@ interface NavItem {
       padding: 20px 8px;
     }
 
-    .sidebar-logo { display: flex; align-items: center; padding: 0 4px; }
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      gap: 8px;
+    }
+
+    .collapse-btn {
+      margin-left: auto;
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid var(--line-1);
+      border-radius: var(--r-sm);
+      color: var(--fg-3);
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .collapse-btn:hover {
+      color: var(--fg-0);
+      border-color: var(--line-2);
+    }
+
+    .sidebar.collapsed .collapse-btn {
+      margin-left: 0;
+    }
 
     .sidebar-search {
       padding: 8px 10px;
@@ -149,10 +205,42 @@ interface NavItem {
       color: oklch(0.14 0.013 245);
       flex-shrink: 0;
     }
+
+    .logout-btn {
+      background: none;
+      border: 1px solid var(--line-1);
+      border-radius: var(--r-sm);
+      color: var(--fg-3);
+      cursor: pointer;
+      padding: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+
+    .logout-btn:hover {
+      color: oklch(0.85 0.15 25);
+      border-color: oklch(0.55 0.18 25 / 0.4);
+      background: oklch(0.22 0.06 25 / 0.3);
+    }
   `]
 })
 export class SidebarComponent {
-  @Input() collapsed = false;
+  protected auth = inject(AuthService);
+
+  collapsed = signal(false);
+
+  userInitials(): string {
+    const name = this.auth.user()?.name || '';
+    return name
+      .split(' ')
+      .slice(0, 2)
+      .map(n => n[0] || '')
+      .join('')
+      .toUpperCase() || 'WC';
+  }
 
   readonly navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', route: '/dashboard', icon: gridIcon() },

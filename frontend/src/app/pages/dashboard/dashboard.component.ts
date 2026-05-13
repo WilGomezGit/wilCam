@@ -2,7 +2,6 @@ import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
-import { TopbarComponent } from '../../shared/components/topbar/topbar.component';
 import { CameraFeedComponent } from '../../shared/components/camera-feed/camera-feed.component';
 import { CameraService } from '../../core/services/camera.service';
 import { EventsService } from '../../core/services/events.service';
@@ -19,7 +18,7 @@ const SCENE_MAP: Record<string, string> = {
 @Component({
   selector: 'wc-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, TopbarComponent, CameraFeedComponent],
+  imports: [CommonModule, RouterLink, CameraFeedComponent],
   template: `
     <div class="page-wrap">
       <!-- TOP BAR -->
@@ -443,7 +442,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
 
     this.socketService.newEvent$.pipe(takeUntil(this.destroy$)).subscribe(ev => {
-      this.recentAlerts.update(alerts => [ev, ...alerts].slice(0, 4));
+      this.recentAlerts.update(alerts => [ev as CameraEvent, ...alerts].slice(0, 4));
       this.unreviewedCount.update(n => n + 1);
       this.todayEvents.update(n => n + 1);
     });

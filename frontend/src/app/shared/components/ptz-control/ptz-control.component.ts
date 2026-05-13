@@ -1,11 +1,12 @@
 import { Component, Input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { PtzService, PtzAction } from '../../../core/services/ptz.service';
 
 @Component({
   selector: 'wc-ptz-control',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="ptz-wrapper glass">
       <!-- Direction pad -->

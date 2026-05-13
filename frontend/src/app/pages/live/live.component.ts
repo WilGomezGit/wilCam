@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, ActivatedRoute } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { TopbarComponent } from '../../shared/components/topbar/topbar.component';
@@ -21,7 +21,7 @@ const PRESETS = ['Entrada', 'Mostrador', 'Escalera', 'Ascensor', 'Pasillo A', 'P
 @Component({
   selector: 'wc-live',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, TopbarComponent, CameraFeedComponent, PtzControlComponent],
+  imports: [CommonModule, FormsModule, TopbarComponent, CameraFeedComponent, PtzControlComponent],
   template: `
     <div class="page-wrap">
       <wc-topbar [title]="selectedCam() ? (selectedCam()!.name + ' · ' + selectedCam()!.id.toUpperCase()) : 'Cámaras en vivo'"

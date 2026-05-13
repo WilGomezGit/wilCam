@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SidebarComponent } from '../../shared/components/sidebar/sidebar.component';
+import { SocketService } from '../../core/services/socket.service';
 
 @Component({
   selector: 'wc-main-layout',
@@ -15,20 +16,13 @@ import { SidebarComponent } from '../../shared/components/sidebar/sidebar.compon
     </div>
   `,
   styles: [`
-    .layout {
-      display: flex;
-      height: 100vh;
-      overflow: hidden;
-      background: var(--bg-0);
-    }
-
-    .layout-content {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+    .layout { display:flex;height:100vh;overflow:hidden;background:var(--bg-0); }
+    .layout-content { flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden; }
   `]
 })
-export class MainLayoutComponent {}
+export class MainLayoutComponent implements OnInit, OnDestroy {
+  private socketService = inject(SocketService);
+
+  ngOnInit(): void { this.socketService.connect(); }
+  ngOnDestroy(): void { this.socketService.disconnect(); }
+}
