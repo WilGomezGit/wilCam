@@ -1,40 +1,47 @@
+'use strict';
 const express = require('express');
 const router = express.Router();
-const onvifSvc = require('../services/onvif.service');
+const { body } = require('express-validator');
+const { validate } = require('../middleware/validate.middleware');
+const { verifyToken } = require('../middleware/auth.middleware');
+const onvifService = require('../services/onvif.service');
 
 // GET /api/onvif/discover
-router.get('/discover', async (req, res) => {
+router.get('/discover', verifyToken, async (req, res, next) => {
   try {
-    const timeout = parseInt(req.query.timeout) || 3000;
-    const cameras = await onvifSvc.discoverCameras(timeout);
-    res.json(cameras);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    const cameras = await onvifService.discoverCameras();
+    res.json({ cameras, count: cameras.length });
+  } catch (err) { next(err); }
 });
 
 // POST /api/onvif/stream-uri
-router.post('/stream-uri', async (req, res) => {
-  const { host, port, username, password, profileToken } = req.body;
-  if (!host) return res.status(400).json({ error: 'host is required' });
+router.post('/stream-uri', verifyToken, [
+  body('host').trim().isIP().withMessage('IP inválida'),
+  body('port').optional().isInt({ min: 1, max: 65535 }).toInt(),
+  body('username').optional().trim(),
+  body('password').optional().trim(),
+  validate,
+], async (req, res, next) => {
   try {
-    const uri = await onvifSvc.getStreamUri(host, port, username, password, profileToken);
-    res.json({ uri });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    const { host, port = 80, username = 'admin', password = '' } = req.body;
+    const uri = await onvifService.getStreamUri(host, port, username, password);
+    res.json({ rtspUrl: uri });
+  } catch (err) { next(err); }
 });
 
 // POST /api/onvif/device-info
-router.post('/device-info', async (req, res) => {
-  const { host, port, username, password } = req.body;
-  if (!host) return res.status(400).json({ error: 'host is required' });
+router.post('/device-info', verifyToken, [
+  body('host').trim().isIP().withMessage('IP inválida'),
+  body('port').optional().isInt({ min: 1, max: 65535 }).toInt(),
+  body('username').optional().trim(),
+  body('password').optional().trim(),
+  validate,
+], async (req, res, next) => {
   try {
-    const info = await onvifSvc.getDeviceInfo(host, port, username, password);
+    const { host, port = 80, username = 'admin', password = '' } = req.body;
+    const info = await onvifService.getDeviceInfo(host, port, username, password);
     res.json(info);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

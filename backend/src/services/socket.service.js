@@ -1,32 +1,8 @@
+'use strict';
 let io;
 
-function init(server) {
-  const { Server } = require('socket.io');
-  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:4200';
-
-  io = new Server(server, {
-    cors: {
-      origin: corsOrigin,
-      methods: ['GET', 'POST'],
-    },
-  });
-
-  io.on('connection', (socket) => {
-    console.log(`[WS] client connected: ${socket.id}`);
-
-    socket.on('subscribe:camera', (cameraId) => {
-      socket.join(`camera:${cameraId}`);
-    });
-
-    socket.on('unsubscribe:camera', (cameraId) => {
-      socket.leave(`camera:${cameraId}`);
-    });
-
-    socket.on('disconnect', () => {
-      console.log(`[WS] client disconnected: ${socket.id}`);
-    });
-  });
-
+function init(ioInstance) {
+  io = ioInstance;
   return io;
 }
 
@@ -46,9 +22,9 @@ function emitEvent(event) {
   io.to(`camera:${event.camera_id}`).emit('camera:event', event);
 }
 
-function emitRecordingUpdate(cameraId, recording) {
+function emitRecordingUpdate(cameraId, data) {
   if (!io) return;
-  io.emit('recording:update', { cameraId, recording });
+  io.emit('recording:update', { cameraId, ...data, ts: Date.now() });
 }
 
 function emitStreamStatus(cameraId, streaming, hlsUrl) {
@@ -58,7 +34,7 @@ function emitStreamStatus(cameraId, streaming, hlsUrl) {
 
 function emitSystemStats(stats) {
   if (!io) return;
-  io.emit('system:stats', stats);
+  io.emit('system:stats', { ...stats, ts: Date.now() });
 }
 
 module.exports = { init, getIo, emitCameraStatus, emitEvent, emitRecordingUpdate, emitStreamStatus, emitSystemStats };

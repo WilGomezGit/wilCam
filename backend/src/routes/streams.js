@@ -1,59 +1,61 @@
+'use strict';
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../db/database');
-const ffmpegSvc = require('../services/ffmpeg.service');
-const socketSvc = require('../services/socket.service');
+const { verifyToken } = require('../middleware/auth.middleware');
+const db = require('../db/database');
+const ffmpegService = require('../services/ffmpeg.service');
 
-// POST /api/streams/:cameraId/start
-router.post('/:cameraId/start', (req, res) => {
-  const db = getDb();
-  const cam = db.prepare('SELECT * FROM cameras WHERE id = ?').get(req.params.cameraId);
-  if (!cam) return res.status(404).json({ error: 'Camera not found' });
-
-  try {
-    ffmpegSvc.startHlsStream(cam.id, cam.rtsp_url);
-    const hlsUrl = ffmpegSvc.getM3u8Url(cam.id);
-    socketSvc.emitStreamStatus(cam.id, true, hlsUrl);
-    res.json({ streaming: true, hlsUrl });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/streams/:cameraId/stop
-router.post('/:cameraId/stop', (req, res) => {
-  ffmpegSvc.stopHlsStream(req.params.cameraId);
-  socketSvc.emitStreamStatus(req.params.cameraId, false, null);
-  res.json({ streaming: false });
+// GET /api/streams — all active
+router.get('/', verifyToken, (req, res) => {
+  const active = ffmpegService.getActiveStreams();
+  res.json(active);
 });
 
 // GET /api/streams/:cameraId/status
-router.get('/:cameraId/status', (req, res) => {
-  const streaming = ffmpegSvc.isStreaming(req.params.cameraId);
-  res.json({
-    cameraId: req.params.cameraId,
-    streaming,
-    hlsUrl: streaming ? ffmpegSvc.getM3u8Url(req.params.cameraId) : null,
-  });
+router.get('/:cameraId/status', verifyToken, (req, res, next) => {
+  try {
+    const cam = db.prepare('SELECT id, name FROM cameras WHERE id = ?').get(req.params.cameraId);
+    if (!cam) return res.status(404).json({ error: 'Cámara no encontrada' });
+    res.json({
+      cameraId: req.params.cameraId,
+      streaming: ffmpegService.isStreaming(req.params.cameraId),
+      recording: ffmpegService.isRecording(req.params.cameraId),
+      hlsUrl: ffmpegService.isStreaming(req.params.cameraId) ? `/hls/${req.params.cameraId}/index.m3u8` : null,
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/streams/:cameraId/start
+router.post('/:cameraId/start', verifyToken, async (req, res, next) => {
+  try {
+    const cam = db.prepare('SELECT * FROM cameras WHERE id = ?').get(req.params.cameraId);
+    if (!cam) return res.status(404).json({ error: 'Cámara no encontrada' });
+    if (ffmpegService.isStreaming(cam.id)) {
+      return res.json({ message: 'Stream ya activo', hlsUrl: `/hls/${cam.id}/index.m3u8` });
+    }
+    await ffmpegService.startHlsStream(cam);
+    res.json({ message: 'Stream iniciado', hlsUrl: `/hls/${cam.id}/index.m3u8` });
+  } catch (err) { next(err); }
+});
+
+// POST /api/streams/:cameraId/stop
+router.post('/:cameraId/stop', verifyToken, async (req, res, next) => {
+  try {
+    const cam = db.prepare('SELECT id FROM cameras WHERE id = ?').get(req.params.cameraId);
+    if (!cam) return res.status(404).json({ error: 'Cámara no encontrada' });
+    await ffmpegService.stopHlsStream(req.params.cameraId);
+    res.json({ message: 'Stream detenido' });
+  } catch (err) { next(err); }
 });
 
 // POST /api/streams/:cameraId/snapshot
-router.post('/:cameraId/snapshot', async (req, res) => {
-  const db = getDb();
-  const cam = db.prepare('SELECT * FROM cameras WHERE id = ?').get(req.params.cameraId);
-  if (!cam) return res.status(404).json({ error: 'Camera not found' });
-
+router.post('/:cameraId/snapshot', verifyToken, async (req, res, next) => {
   try {
-    const snap = await ffmpegSvc.captureSnapshot(cam.id, cam.rtsp_url);
-    res.json(snap);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/streams — all active
-router.get('/', (req, res) => {
-  res.json(ffmpegSvc.getActiveStreams());
+    const cam = db.prepare('SELECT * FROM cameras WHERE id = ?').get(req.params.cameraId);
+    if (!cam) return res.status(404).json({ error: 'Cámara no encontrada' });
+    const snapshotPath = await ffmpegService.captureSnapshot(cam);
+    res.json({ snapshotPath, url: `/${snapshotPath}` });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;
