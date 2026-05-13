@@ -5,11 +5,11 @@ RUN apk add --no-cache ffmpeg python3 make g++
 
 FROM base AS deps
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev --no-audit --no-fund
 
 FROM base AS build
 COPY package*.json ./
-RUN npm ci
+RUN npm install --no-audit --no-fund
 COPY . .
 
 FROM base AS runtime
