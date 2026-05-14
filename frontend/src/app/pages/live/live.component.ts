@@ -3,12 +3,13 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Subject } from 'rxjs';
+import { Subject, takeUntil } from 'rxjs';
 import { TopbarComponent } from '../../shared/components/topbar/topbar.component';
 import { CameraFeedComponent } from '../../shared/components/camera-feed/camera-feed.component';
 import { PtzControlComponent } from '../../shared/components/ptz-control/ptz-control.component';
 import { CameraService } from '../../core/services/camera.service';
 import { StreamService } from '../../core/services/stream.service';
+import { SocketService } from '../../core/services/socket.service';
 import { Camera } from '../../core/models/camera.model';
 
 const SCENE_MAP: Record<string, string> = {
@@ -196,6 +197,7 @@ const PRESETS = ['Entrada', 'Mostrador', 'Escalera', 'Ascensor', 'Pasillo A', 'P
 export class LiveComponent implements OnInit, OnDestroy {
   private cameraService = inject(CameraService);
   private streamService = inject(StreamService);
+  private socketService = inject(SocketService);
   private route = inject(ActivatedRoute);
   private http = inject(HttpClient);
   private destroy$ = new Subject<void>();
@@ -263,6 +265,17 @@ export class LiveComponent implements OnInit, OnDestroy {
       const initial = paramId ? cams.find(c => c.id === paramId) : cams[0];
       if (initial) this.selectCamera(initial);
     });
+
+    // Real-time camera status via WebSocket
+    this.socketService.cameraStatus$.pipe(takeUntil(this.destroy$)).subscribe(msg => {
+      const status = msg.status as 'online' | 'offline';
+      this.cameras.update(list => list.map(c =>
+        c.id === msg.cameraId ? { ...c, status } : c
+      ));
+      if (this.selectedCam()?.id === msg.cameraId) {
+        this.selectedCam.update(c => c ? { ...c, status } : c);
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -271,8 +284,18 @@ export class LiveComponent implements OnInit, OnDestroy {
   }
 
   private loadStream(cam: Camera): void {
-    this.streamService.startStream(cam.id).subscribe(res => {
-      this.hlsUrl.set(res.hlsUrl);
+    this.streamService.startStream(cam.id).subscribe({
+      next: res => {
+        this.hlsUrl.set(res.hlsUrl);
+        // Optimistically mark as online once stream starts
+        this.cameras.update(list => list.map(c =>
+          c.id === cam.id ? { ...c, status: 'online' as const } : c
+        ));
+        this.selectedCam.update(c => c?.id === cam.id ? { ...c, status: 'online' as const } : c);
+      },
+      error: () => {
+        // Stream failed — camera stays offline
+      }
     });
   }
 }
