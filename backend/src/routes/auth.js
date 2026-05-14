@@ -114,6 +114,31 @@ router.get('/me', verifyToken, (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/auth/forgot-password  (local NVR — returns temp password directly, no email)
+router.post('/forgot-password', [
+  body('email').isEmail().normalizeEmail().withMessage('Email inválido'),
+  validate,
+], async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const user = db.prepare('SELECT * FROM users WHERE email = ? AND active = 1').get(email);
+    if (!user) {
+      // Don't reveal whether the email exists
+      return res.status(404).json({ error: 'No se encontró una cuenta con ese correo.' });
+    }
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let tempPassword = '';
+    for (let i = 0; i < 10; i++) {
+      tempPassword += chars[Math.floor(Math.random() * chars.length)];
+    }
+    const rounds = parseInt(process.env.BCRYPT_ROUNDS || '10');
+    const hash = await bcrypt.hash(tempPassword, rounds);
+    db.prepare("UPDATE users SET password_hash = ?, refresh_token = NULL, updated_at = datetime('now') WHERE id = ?")
+      .run(hash, user.id);
+    res.json({ tempPassword, name: user.name, message: 'Contraseña temporal generada. Cámbiala en Configuración al iniciar sesión.' });
+  } catch (err) { next(err); }
+});
+
 // PUT /api/auth/password
 router.put('/password', verifyToken, [
   body('currentPassword').notEmpty().withMessage('Contraseña actual requerida'),

@@ -85,38 +85,95 @@ import { CameraFeedComponent } from '../../shared/components/camera-feed/camera-
               </div>
             }
 
-            <div style="display:flex;flex-direction:column;gap:12px">
-              <label style="display:flex;flex-direction:column;gap:6px">
-                <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">CORREO</span>
-                <input type="email" [(ngModel)]="email" placeholder="admin@wilcam.local" [disabled]="loading()" (keydown.enter)="login()">
-              </label>
-              <label style="display:flex;flex-direction:column;gap:6px">
-                <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">CONTRASEÑA</span>
-                <div style="position:relative">
-                  <input [type]="showPwd() ? 'text' : 'password'" [(ngModel)]="password" style="padding-right:80px" [disabled]="loading()" (keydown.enter)="login()">
-                  <button class="btn ghost" (click)="showPwd.set(!showPwd())"
-                          style="position:absolute;right:4px;top:4px;padding:5px 8px;font-size:11px;color:var(--fg-2);border:none">
-                    {{ showPwd() ? 'Ocultar' : 'Ver' }}
+            @if (!showForgot()) {
+              <!-- LOGIN FORM -->
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <label style="display:flex;flex-direction:column;gap:6px">
+                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">CORREO</span>
+                  <input type="email" [(ngModel)]="email" placeholder="admin@wilcam.local" [disabled]="loading()" (keydown.enter)="login()">
+                </label>
+                <label style="display:flex;flex-direction:column;gap:6px">
+                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">CONTRASEÑA</span>
+                  <div style="position:relative">
+                    <input [type]="showPwd() ? 'text' : 'password'" [(ngModel)]="password" style="padding-right:80px" [disabled]="loading()" (keydown.enter)="login()">
+                    <button class="btn ghost" (click)="showPwd.set(!showPwd())"
+                            style="position:absolute;right:4px;top:4px;padding:5px 8px;font-size:11px;color:var(--fg-2);border:none">
+                      {{ showPwd() ? 'Ocultar' : 'Ver' }}
+                    </button>
+                  </div>
+                </label>
+                <div style="text-align:right;margin-top:2px">
+                  <a (click)="openForgot()" style="font-size:12px;color:var(--accent-2);text-decoration:none;cursor:pointer">¿Olvidaste tu clave?</a>
+                </div>
+              </div>
+
+              <button class="btn primary" (click)="login()" [disabled]="loading()"
+                      style="width:100%;justify-content:center;padding:13px 14px;margin-top:20px;font-size:14px;font-weight:600">
+                @if (loading()) {
+                  <span style="display:flex;align-items:center;gap:8px">
+                    <span style="width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block"></span>
+                    Verificando…
+                  </span>
+                } @else {
+                  Acceder al sistema →
+                }
+              </button>
+
+              <div style="margin-top:10px;text-align:center;font-size:11px;color:var(--fg-3)">
+                Demo: <span class="mono" style="color:var(--accent-2)">admin@wilcam.local</span> / <span class="mono">admin123</span>
+              </div>
+
+            } @else {
+              <!-- FORGOT PASSWORD PANEL -->
+              @if (!forgotTempPwd()) {
+                <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:20px">
+                  <div style="font-size:15px;font-weight:600">Restablecer contraseña</div>
+                  <div style="font-size:12px;color:var(--fg-3)">Se generará una contraseña temporal. Cámbiala en Configuración al ingresar.</div>
+                </div>
+                @if (forgotError()) {
+                  <div style="padding:10px 12px;background:oklch(0.22 0.06 25/0.8);border:1px solid oklch(0.55 0.18 25/0.4);border-radius:var(--r-sm);font-size:12px;color:oklch(0.85 0.15 25);margin-bottom:14px">
+                    {{ forgotError() }}
+                  </div>
+                }
+                <label style="display:flex;flex-direction:column;gap:6px">
+                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">CORREO REGISTRADO</span>
+                  <input type="email" [(ngModel)]="forgotEmail" placeholder="admin@wilcam.local"
+                         [disabled]="forgotLoading()" (keydown.enter)="submitForgot()">
+                </label>
+                <button class="btn primary" (click)="submitForgot()" [disabled]="forgotLoading()"
+                        style="width:100%;justify-content:center;padding:13px 14px;margin-top:16px;font-size:14px;font-weight:600">
+                  @if (forgotLoading()) {
+                    <span style="display:flex;align-items:center;gap:8px">
+                      <span style="width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block"></span>
+                      Procesando…
+                    </span>
+                  } @else {
+                    Generar contraseña temporal
+                  }
+                </button>
+              } @else {
+                <!-- TEMP PASSWORD REVEALED -->
+                <div style="display:flex;flex-direction:column;gap:14px">
+                  <div style="display:flex;align-items:center;gap:10px;padding:12px;background:oklch(0.18 0.04 155/0.5);border:1px solid oklch(0.55 0.17 155/0.4);border-radius:var(--r-sm)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span style="font-size:13px;font-weight:600;color:var(--ok)">Contraseña generada</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--fg-2)">Tu contraseña temporal es:</div>
+                  <div style="padding:14px 16px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--r-sm);text-align:center">
+                    <span class="mono" style="font-size:22px;font-weight:700;letter-spacing:0.08em;color:var(--accent-2)">{{ forgotTempPwd() }}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--fg-3);text-align:center">
+                    Copia esta contraseña. Tendrás que cambiarla en <strong style="color:var(--fg-2)">Configuración</strong> al ingresar.
+                  </div>
+                  <button class="btn primary" (click)="useTempPwd()" style="width:100%;justify-content:center;padding:11px 14px;font-size:13px;font-weight:600">
+                    Iniciar sesión con contraseña temporal →
                   </button>
                 </div>
-              </label>
-            </div>
-
-            <button class="btn primary" (click)="login()" [disabled]="loading()"
-                    style="width:100%;justify-content:center;padding:13px 14px;margin-top:20px;font-size:14px;font-weight:600">
-              @if (loading()) {
-                <span style="display:flex;align-items:center;gap:8px">
-                  <span style="width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block"></span>
-                  Verificando…
-                </span>
-              } @else {
-                Acceder al sistema →
               }
-            </button>
-
-            <div style="margin-top:10px;text-align:center;font-size:11px;color:var(--fg-3)">
-              Demo: <span class="mono" style="color:var(--accent-2)">admin@wilcam.local</span> / <span class="mono">admin123</span>
-            </div>
+              <button (click)="closeForgot()" style="background:none;border:none;color:var(--fg-3);font-size:12px;cursor:pointer;margin-top:14px;text-align:center;width:100%">
+                ← Volver al inicio de sesión
+              </button>
+            }
 
             <div style="margin-top:18px;padding:12px;background:oklch(0.20 0.018 245/0.5);border:1px dashed var(--line-2);border-radius:var(--r-sm);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--fg-2)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -158,11 +215,53 @@ export class LoginComponent {
   showPwd = signal(false);
   errorMsg = signal('');
 
+  showForgot = signal(false);
+  forgotEmail = '';
+  forgotLoading = signal(false);
+  forgotError = signal('');
+  forgotTempPwd = signal('');
+
   readonly stats = [
     { n: '128', l: 'Cámaras simultáneas' },
     { n: '99.98%', l: 'Uptime garantizado' },
     { n: 'AES-256', l: 'Encriptación' },
   ];
+
+  openForgot(): void {
+    this.forgotEmail = this.email;
+    this.forgotError.set('');
+    this.forgotTempPwd.set('');
+    this.showForgot.set(true);
+  }
+
+  closeForgot(): void {
+    this.showForgot.set(false);
+    this.forgotTempPwd.set('');
+    this.forgotError.set('');
+  }
+
+  submitForgot(): void {
+    if (!this.forgotEmail) { this.forgotError.set('Ingresa tu correo.'); return; }
+    this.forgotLoading.set(true);
+    this.forgotError.set('');
+    this.auth.forgotPassword(this.forgotEmail).subscribe({
+      next: res => {
+        this.forgotTempPwd.set(res.tempPassword);
+        this.forgotLoading.set(false);
+      },
+      error: err => {
+        this.forgotError.set(err?.error?.error || 'No se encontró una cuenta con ese correo.');
+        this.forgotLoading.set(false);
+      },
+    });
+  }
+
+  useTempPwd(): void {
+    this.email = this.forgotEmail;
+    this.password = this.forgotTempPwd();
+    this.showForgot.set(false);
+    this.forgotTempPwd.set('');
+  }
 
   login(): void {
     if (!this.email || !this.password) {

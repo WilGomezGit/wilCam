@@ -114,6 +114,10 @@ export class AuthService {
     return this.http.get<User>('/api/auth/me');
   }
 
+  forgotPassword(email: string): Observable<{ tempPassword: string; name: string; message: string }> {
+    return this.http.post<{ tempPassword: string; name: string; message: string }>('/api/auth/forgot-password', { email });
+  }
+
   changePassword(currentPassword: string, newPassword: string): Observable<{ message: string }> {
     return this.http.put<{ message: string }>('/api/auth/password', { currentPassword, newPassword });
   }

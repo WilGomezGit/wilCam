@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TopbarComponent } from '../../shared/components/topbar/topbar.component';
 import { CameraService } from '../../core/services/camera.service';
+import { AuthService } from '../../core/services/auth.service';
 import { Camera } from '../../core/models/camera.model';
 
 function extractIp(rtspUrl: string): string {
@@ -265,16 +266,62 @@ function extractIp(rtspUrl: string): string {
             </table>
           }
         </div>
+
+        <!-- Change password -->
+        <div style="margin-top:32px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px">Cambiar contraseña</div>
+          <div style="font-size:12px;color:var(--fg-3);margin-bottom:16px">Actualiza tu contraseña de acceso al sistema.</div>
+          <div class="glass" style="padding:18px;border-radius:12px;max-width:480px">
+            @if (pwdSuccess()) {
+              <div style="padding:10px 12px;background:oklch(0.18 0.04 155/0.5);border:1px solid oklch(0.55 0.17 155/0.4);border-radius:var(--r-sm);font-size:12px;color:var(--ok);margin-bottom:14px;display:flex;align-items:center;gap:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Contraseña actualizada correctamente.
+              </div>
+            }
+            @if (pwdError()) {
+              <div style="padding:10px 12px;background:oklch(0.22 0.06 25/0.8);border:1px solid oklch(0.55 0.18 25/0.4);border-radius:var(--r-sm);font-size:12px;color:oklch(0.85 0.15 25);margin-bottom:14px">
+                {{ pwdError() }}
+              </div>
+            }
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <label class="field">
+                <span>CONTRASEÑA ACTUAL</span>
+                <input type="password" [(ngModel)]="pwdCurrent" [disabled]="pwdSaving()" autocomplete="current-password">
+              </label>
+              <label class="field">
+                <span>NUEVA CONTRASEÑA (mín. 8 caracteres)</span>
+                <input type="password" [(ngModel)]="pwdNew" [disabled]="pwdSaving()" autocomplete="new-password">
+              </label>
+              <label class="field">
+                <span>CONFIRMAR NUEVA CONTRASEÑA</span>
+                <input type="password" [(ngModel)]="pwdConfirm" [disabled]="pwdSaving()" autocomplete="new-password">
+              </label>
+            </div>
+            <button class="btn primary" (click)="changePassword()" [disabled]="pwdSaving()"
+                    style="margin-top:16px;padding:10px 20px">
+              @if (pwdSaving()) {
+                <span style="display:flex;align-items:center;gap:8px">
+                  <span style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block"></span>
+                  Guardando…
+                </span>
+              } @else {
+                Cambiar contraseña
+              }
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   `,
   styles: [`
     .field { display:flex;flex-direction:column;gap:4px; }
     .field span { font-size:9px;color:var(--fg-3);letter-spacing:0.14em;font-family:monospace; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   `]
 })
 export class SettingsComponent implements OnInit {
   private cameraService = inject(CameraService);
+  private auth = inject(AuthService);
 
   showAddForm = false;
   connectionTested = false;
@@ -286,6 +333,13 @@ export class SettingsComponent implements OnInit {
   loading = signal(false);
   cameras = signal<Camera[]>([]);
   editingId = signal<string | null>(null);
+
+  pwdCurrent = '';
+  pwdNew = '';
+  pwdConfirm = '';
+  pwdSaving = signal(false);
+  pwdError = signal('');
+  pwdSuccess = signal(false);
 
   newCam = {
     name: '', location: '', rtsp: '', username: '', password: '',
@@ -398,6 +452,28 @@ export class SettingsComponent implements OnInit {
   deleteCamera(cam: Camera): void {
     if (!confirm(`¿Eliminar "${cam.name}"? Esta acción no se puede deshacer.`)) return;
     this.cameraService.delete(cam.id).subscribe({ next: () => this.loadCameras() });
+  }
+
+  changePassword(): void {
+    this.pwdError.set('');
+    this.pwdSuccess.set(false);
+    if (!this.pwdCurrent) { this.pwdError.set('Ingresa tu contraseña actual.'); return; }
+    if (this.pwdNew.length < 8) { this.pwdError.set('La nueva contraseña debe tener mínimo 8 caracteres.'); return; }
+    if (this.pwdNew !== this.pwdConfirm) { this.pwdError.set('Las contraseñas no coinciden.'); return; }
+    this.pwdSaving.set(true);
+    this.auth.changePassword(this.pwdCurrent, this.pwdNew).subscribe({
+      next: () => {
+        this.pwdSaving.set(false);
+        this.pwdSuccess.set(true);
+        this.pwdCurrent = '';
+        this.pwdNew = '';
+        this.pwdConfirm = '';
+      },
+      error: err => {
+        this.pwdSaving.set(false);
+        this.pwdError.set(err?.error?.error || 'Error al cambiar la contraseña.');
+      },
+    });
   }
 
   toggleField(cam: Camera, field: 'recording_enabled' | 'ptz_enabled'): void {
