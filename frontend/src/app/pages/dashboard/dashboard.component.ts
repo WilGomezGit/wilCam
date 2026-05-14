@@ -364,8 +364,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   cameras = signal<Camera[]>([]);
   recentAlerts = signal<CameraEvent[]>([]);
-  todayEvents = signal(47);
-  unreviewedCount = signal(12);
+  todayEvents = signal(0);
+  unreviewedCount = signal(0);
   gridMode = signal<'2x2' | '3x3' | '4x4'>('3x3');
 
   readonly gridOptions = [
@@ -375,11 +375,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ];
 
   get topCams(): [string, string, number, number][] {
-    return this.cameras().slice(0, 4).map((c, i) => [
+    return this.cameras().slice(0, 4).map(c => [
       c.id.substring(0, 6).toUpperCase(),
       c.name,
-      0,
-      0,
+      c.status === 'online' ? 1 : 0,
+      c.status === 'online' ? 100 : 0,
     ]);
   }
 

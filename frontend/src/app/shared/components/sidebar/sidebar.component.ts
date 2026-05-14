@@ -243,14 +243,11 @@ export class SidebarComponent {
   }
 
   readonly navItems: NavItem[] = [
-    { id: 'dashboard', label: 'Dashboard', route: '/dashboard', icon: gridIcon() },
-    { id: 'live', label: 'Cámaras en vivo', route: '/live', icon: camIcon() },
-    { id: 'dvr', label: 'Grabaciones', route: '/dvr', icon: playIcon(), badge: '24h' },
-    { id: 'events', label: 'Eventos', route: '/events', icon: bellIcon(), badge: '12' },
-    { id: 'map', label: 'Mapa', route: '/map', icon: mapIcon() },
-    { id: 'heatmap', label: 'Heatmap', route: '/heatmap', icon: flameIcon() },
-    { id: 'analytics', label: 'Analytics IA', route: '/analytics', icon: analyticsIcon() },
-    { id: 'settings', label: 'Configuración', route: '/settings', icon: cogIcon() },
+    { id: 'dashboard', label: 'Dashboard',      route: '/dashboard', icon: gridIcon() },
+    { id: 'live',      label: 'Cámaras en vivo',route: '/live',      icon: camIcon() },
+    { id: 'dvr',       label: 'Grabaciones',    route: '/dvr',       icon: playIcon() },
+    { id: 'events',    label: 'Eventos',         route: '/events',    icon: bellIcon() },
+    { id: 'settings',  label: 'Configuración',  route: '/settings',  icon: cogIcon() },
   ];
 }
 
