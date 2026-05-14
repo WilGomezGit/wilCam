@@ -28,7 +28,7 @@ export class CameraService {
     return this.http.delete<{ success: boolean }>(`${this.base}/${id}`);
   }
 
-  testConnection(rtspUrl: string): Observable<{ success: boolean; latency?: number }> {
-    return this.http.post<{ success: boolean; latency?: number }>('/api/streams/test', { rtspUrl });
+  testConnection(rtspUrl: string): Observable<{ success: boolean; latencyMs?: number }> {
+    return this.http.post<{ success: boolean; latencyMs?: number }>(`${this.base}/test-connection`, { rtsp_url: rtspUrl });
   }
 }

@@ -1,7 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { CameraEvent, EventStats } from '../models/event.model';
+
+interface EventsResponse {
+  events: CameraEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class EventsService {
@@ -18,11 +25,16 @@ export class EventsService {
   }): Observable<CameraEvent[]> {
     let params = new HttpParams();
     if (filters) {
-      Object.entries(filters).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) params = params.set(k, String(v));
-      });
+      if (filters.cameraId != null) params = params.set('camera_id', String(filters.cameraId));
+      if (filters.type != null) params = params.set('type', String(filters.type));
+      if (filters.date != null) params = params.set('date', String(filters.date));
+      if (filters.reviewed != null) params = params.set('reviewed', String(filters.reviewed));
+      if (filters.limit != null) params = params.set('limit', String(filters.limit));
+      if (filters.offset != null) params = params.set('offset', String(filters.offset));
     }
-    return this.http.get<CameraEvent[]>(this.base, { params });
+    return this.http.get<EventsResponse>(this.base, { params }).pipe(
+      map(res => res.events ?? [])
+    );
   }
 
   getStats(): Observable<EventStats> {
@@ -37,7 +49,7 @@ export class EventsService {
     return this.http.patch<CameraEvent>(`${this.base}/${id}`, { false_positive: fp });
   }
 
-  delete(id: string): Observable<{ success: boolean }> {
-    return this.http.delete<{ success: boolean }>(`${this.base}/${id}`);
+  delete(id: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.base}/${id}`);
   }
 }
