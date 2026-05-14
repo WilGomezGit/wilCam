@@ -98,6 +98,13 @@ app.use('/recordings', express.static(path.resolve('public/recordings')));
 app.use('/snapshots', express.static(path.resolve('public/snapshots')));
 app.use('/cloud', express.static(path.resolve('public/cloud')));
 
+// ── Angular frontend (production build) ───────────────────────────
+const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist/wilcam/browser');
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+  console.log(`[STATIC] Sirviendo frontend desde ${FRONTEND_DIST}`);
+}
+
 // ── API Routes ───────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/cameras', require('./routes/cameras'));
@@ -143,6 +150,13 @@ app.get('/api/system/stats', verifyToken, (req, res) => {
     uptime: Math.round(process.uptime()),
   });
 });
+
+// ── Angular catch-all (SPA routing) ──────────────────────────────
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+}
 
 // ── 404 + Error handlers ─────────────────────────────────────────
 app.use(notFound);
