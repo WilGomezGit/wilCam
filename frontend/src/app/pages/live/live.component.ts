@@ -2,12 +2,14 @@ import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
 import { TopbarComponent } from '../../shared/components/topbar/topbar.component';
 import { CameraFeedComponent } from '../../shared/components/camera-feed/camera-feed.component';
 import { PtzControlComponent } from '../../shared/components/ptz-control/ptz-control.component';
 import { CameraService } from '../../core/services/camera.service';
 import { StreamService } from '../../core/services/stream.service';
+import { SocketService } from '../../core/services/socket.service';
 import { Camera } from '../../core/models/camera.model';
 
 const SCENE_MAP: Record<string, string> = {
@@ -26,7 +28,11 @@ const PRESETS = ['Entrada', 'Mostrador', 'Escalera', 'Ascensor', 'Pasillo A', 'P
     <div class="page-wrap">
       <wc-topbar [title]="selectedCam() ? (selectedCam()!.name + ' · ' + selectedCam()!.id.toUpperCase()) : 'Cámaras en vivo'"
                  [subtitle]="'VISTA EN VIVO · ' + (selectedCam()?.resolution || '4K') + ' · 30 FPS'">
-        <span class="chip live"><span class="live-dot"></span> EN VIVO</span>
+        @if (selectedCam()?.status === 'online') {
+          <span class="chip live"><span class="live-dot"></span> EN VIVO</span>
+        } @else if (selectedCam()?.status === 'offline') {
+          <span class="chip warn">OFFLINE</span>
+        }
         <span class="chip acc">Señal excelente</span>
         <span class="chip">RTSP · H.265</span>
         <button class="btn ghost" (click)="takeSnapshot()">
@@ -191,7 +197,9 @@ const PRESETS = ['Entrada', 'Mostrador', 'Escalera', 'Ascensor', 'Pasillo A', 'P
 export class LiveComponent implements OnInit, OnDestroy {
   private cameraService = inject(CameraService);
   private streamService = inject(StreamService);
+  private socketService = inject(SocketService);
   private route = inject(ActivatedRoute);
+  private http = inject(HttpClient);
   private destroy$ = new Subject<void>();
 
   cameras = signal<Camera[]>([]);
@@ -233,8 +241,10 @@ export class LiveComponent implements OnInit, OnDestroy {
   stopTalk(): void  { this.talking.set(false); }
 
   gotoPreset(idx: number): void {
+    const cam = this.selectedCam();
+    if (!cam) return;
     this.activePreset.set(idx);
-    // PTZ go-to-preset via service (P1-P6)
+    this.http.post(`/api/ptz/${cam.id}/preset/${idx + 1}`, {}).subscribe();
   }
 
   takeSnapshot(): void {
@@ -242,7 +252,9 @@ export class LiveComponent implements OnInit, OnDestroy {
     if (!c) return;
     this.streamService.captureSnapshot(c.id).subscribe(snap => {
       const a = document.createElement('a');
-      a.href = snap.url; a.download = snap.filename; a.click();
+      a.href = snap.url;
+      a.download = snap.filename || `snapshot-${c.id}-${Date.now()}.jpg`;
+      a.click();
     });
   }
 
@@ -253,6 +265,17 @@ export class LiveComponent implements OnInit, OnDestroy {
       const initial = paramId ? cams.find(c => c.id === paramId) : cams[0];
       if (initial) this.selectCamera(initial);
     });
+
+    // Real-time camera status via WebSocket
+    this.socketService.cameraStatus$.pipe(takeUntil(this.destroy$)).subscribe(msg => {
+      const status = msg.status as 'online' | 'offline';
+      this.cameras.update(list => list.map(c =>
+        c.id === msg.cameraId ? { ...c, status } : c
+      ));
+      if (this.selectedCam()?.id === msg.cameraId) {
+        this.selectedCam.update(c => c ? { ...c, status } : c);
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -261,8 +284,18 @@ export class LiveComponent implements OnInit, OnDestroy {
   }
 
   private loadStream(cam: Camera): void {
-    this.streamService.startStream(cam.id).subscribe(res => {
-      this.hlsUrl.set(res.hlsUrl);
+    this.streamService.startStream(cam.id).subscribe({
+      next: res => {
+        this.hlsUrl.set(res.hlsUrl);
+        // Optimistically mark as online once stream starts
+        this.cameras.update(list => list.map(c =>
+          c.id === cam.id ? { ...c, status: 'online' as const } : c
+        ));
+        this.selectedCam.update(c => c?.id === cam.id ? { ...c, status: 'online' as const } : c);
+      },
+      error: () => {
+        // Stream failed — camera stays offline
+      }
     });
   }
 }

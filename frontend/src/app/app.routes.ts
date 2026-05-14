@@ -21,6 +21,7 @@ export const routes: Routes = [
       { path: 'map', loadComponent: () => import('./pages/map/map.component').then(m => m.MapComponent) },
       { path: 'heatmap', loadComponent: () => import('./pages/heatmap/heatmap.component').then(m => m.HeatmapComponent) },
       { path: 'settings', loadComponent: () => import('./pages/settings/settings.component').then(m => m.SettingsComponent) },
+      { path: 'analytics', loadComponent: () => import('./pages/analytics/analytics.component').then(m => m.AnalyticsComponent) },
     ],
   },
   { path: '**', redirectTo: 'dashboard' },

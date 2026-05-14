@@ -18,8 +18,8 @@ export class StreamService {
     return this.http.get<{ cameraId: string; streaming: boolean; hlsUrl: string | null }>(`/api/streams/${cameraId}/status`);
   }
 
-  captureSnapshot(cameraId: string): Observable<{ filename: string; url: string }> {
-    return this.http.post<{ filename: string; url: string }>(`/api/streams/${cameraId}/snapshot`, {});
+  captureSnapshot(cameraId: string): Observable<{ filename?: string; snapshotPath?: string; url: string }> {
+    return this.http.post<{ filename?: string; snapshotPath?: string; url: string }>(`/api/streams/${cameraId}/snapshot`, {});
   }
 
   getActiveStreams(): Observable<Array<{ cameraId: string; startedAt: string; url: string }>> {

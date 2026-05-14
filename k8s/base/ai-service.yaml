@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wilcam-ai
+  namespace: wilcam
+  labels:
+    app: wilcam-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wilcam-ai
+  template:
+    metadata:
+      labels:
+        app: wilcam-ai
+    spec:
+      initContainers:
+        - name: download-model
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f /models/yolov8n.onnx ]; then
+                echo "Downloading YOLOv8n ONNX model..."
+                curl -L -o /models/yolov8n.onnx \
+                  https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.onnx
+              fi
+          volumeMounts:
+            - name: ai-models
+              mountPath: /models
+      containers:
+        - name: ai
+          image: ghcr.io/wilgomezgit/wilcam-ai:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: wilcam-ai-config
+          env:
+            - name: MODEL_PATH
+              value: /models/yolov8n.onnx
+            - name: BACKEND_URL
+              value: http://wilcam-backend:3000
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 5
+          volumeMounts:
+            - name: ai-models
+              mountPath: /models
+      volumes:
+        - name: ai-models
+          persistentVolumeClaim:
+            claimName: ai-models-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wilcam-ai
+  namespace: wilcam
+spec:
+  selector:
+    app: wilcam-ai
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ai-models-pvc
+  namespace: wilcam
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
