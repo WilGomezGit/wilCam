@@ -100,15 +100,6 @@ import { CameraFeedComponent } from '../../shared/components/camera-feed/camera-
                   </button>
                 </div>
               </label>
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px">
-                <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg-2);cursor:pointer">
-                  <span style="width:14px;height:14px;border-radius:3px;border:1px solid var(--line-2);background:var(--accent);display:flex;align-items:center;justify-content:center">
-                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M5 12l5 5 9-13"/></svg>
-                  </span>
-                  Recordar dispositivo
-                </label>
-                <a style="font-size:12px;color:var(--accent-2);text-decoration:none;cursor:pointer">¿Olvidaste tu clave?</a>
-              </div>
             </div>
 
             <button class="btn primary" (click)="login()" [disabled]="loading()"

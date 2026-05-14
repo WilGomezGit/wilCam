@@ -32,7 +32,7 @@ function sevFor(type: string): 'live' | 'warn' | 'acc' {
           <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" placeholder="Buscar tipo, cámara…"
                  style="background:transparent;border:0;padding:0;flex:1;font-size:12px">
         </div>
-        <button class="btn">
+        <button class="btn" (click)="exportCsv()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Exportar CSV
         </button>
@@ -133,7 +133,7 @@ function sevFor(type: string): 'live' | 'warn' | 'acc' {
                       </td>
                       <td>
                         @if (e.clip_path) {
-                          <button class="btn ghost" style="padding:4px 8px;font-size:11px">
+                          <button class="btn ghost" style="padding:4px 8px;font-size:11px" (click)="openClip(e); $event.stopPropagation()">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                             Clip
                           </button>
@@ -339,6 +339,34 @@ export class EventsComponent implements OnInit {
       },
       error: () => this.savingFp.set(false),
     });
+  }
+
+  exportCsv(): void {
+    const events = this.filteredEvents();
+    if (!events.length) return;
+    const header = 'ID,Tipo,Cámara,Ubicación,Confianza,Revisado,Falso Positivo,Fecha';
+    const rows = events.map(e => [
+      e.id,
+      `"${e.event_type}"`,
+      `"${e.camera_name || e.camera_id}"`,
+      `"${e.location || ''}"`,
+      e.confidence ?? '',
+      e.reviewed ? 'Sí' : 'No',
+      e.false_positive ? 'Sí' : 'No',
+      `"${this.formatDate(e.created_at)}"`,
+    ].join(','));
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wilcam_eventos_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  openClip(e: CameraEvent): void {
+    if (e.clip_path) window.open(e.clip_path, '_blank');
   }
 
   getScene(cameraId: string): string { return sceneFor(cameraId); }
