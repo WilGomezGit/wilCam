@@ -45,7 +45,7 @@ function init() {
       recording_enabled  INTEGER NOT NULL DEFAULT 1,
       ai_enabled         INTEGER NOT NULL DEFAULT 0,
       ptz_enabled        INTEGER NOT NULL DEFAULT 0,
-      ptz_protocol       TEXT NOT NULL DEFAULT 'auto' CHECK(ptz_protocol IN ('auto','cgi','onvif')),
+      ptz_protocol       TEXT NOT NULL DEFAULT 'auto' CHECK(ptz_protocol IN ('auto','cgi','cgi_param','onvif')),
       status             TEXT NOT NULL DEFAULT 'offline' CHECK(status IN ('online','offline','recording','error')),
       sort_order         INTEGER DEFAULT 0,
       created_at         TEXT NOT NULL DEFAULT (datetime('now')),

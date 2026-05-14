@@ -91,8 +91,9 @@ function extractIp(rtspUrl: string): string {
                 <label class="field">
                   <span>PROTOCOLO PTZ</span>
                   <select [(ngModel)]="newCam.ptz_protocol">
-                    <option value="auto">Auto (CGI → ONVIF)</option>
-                    <option value="cgi">HTTP CGI (Cam720, Hi3510)</option>
+                    <option value="auto">Auto (detectar automáticamente)</option>
+                    <option value="cgi">CGI Hi3510 clásico</option>
+                    <option value="cgi_param">CGI param.cgi (INSTAR / Cam720)</option>
                     <option value="onvif">ONVIF SOAP</option>
                   </select>
                 </label>

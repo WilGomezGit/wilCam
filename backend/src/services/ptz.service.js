@@ -3,15 +3,16 @@
  * PTZ Service — multi-protocol support
  *
  * Protocols supported:
- *   'cgi'   — HTTP CGI (Hi3510 format, used by Cam720 and most Chinese IP cameras)
- *   'onvif' — ONVIF SOAP (Hikvision, Dahua, Axis, etc.)
- *   'auto'  — try CGI first, fall back to ONVIF (default)
+ *   'cgi'      — HTTP CGI Hi3510 classic: /web/cgi-bin/hi3510/ptzctrl.cgi, speed 1-10
+ *   'cgi_param'— HTTP CGI param.cgi (INSTAR / newer Hi3510): /param.cgi?cmd=ptzctrl, speed 1-63
+ *   'onvif'    — ONVIF SOAP (Hikvision, Dahua, Axis, etc.)
+ *   'auto'     — try cgi → cgi_param → onvif (default)
  */
 
 const http = require('http');
 const crypto = require('crypto');
 
-// ── CGI Action map (Hi3510 protocol) ────────────────────────────────────────
+// ── CGI Action map (shared by both CGI variants) ─────────────────────────────
 
 const CGI_ACTION_MAP = {
   up:           'up',
@@ -27,24 +28,39 @@ const CGI_ACTION_MAP = {
   stop:         'stop',
 };
 
-// CGI speed scale: 0.1–1.0 → 1–10
-function cgiSpeed(speed) {
-  return Math.max(1, Math.min(10, Math.round(speed * 10)));
-}
+// ── CGI Hi3510 classic (/web/cgi-bin/hi3510/ptzctrl.cgi, speed 1-10) ────────
 
-/**
- * Send PTZ move via HTTP CGI (Hi3510 / Cam720 protocol).
- * GET http://IP:port/web/cgi-bin/hi3510/ptzctrl.cgi?-step=0&-act=left&-speed=5
- */
 function sendCgiPtz(host, port, username, password, action, speed = 0.5) {
   const act = CGI_ACTION_MAP[action] || 'stop';
-  const spd = cgiSpeed(speed);
+  const spd = Math.max(1, Math.min(10, Math.round(speed * 10)));
   const path = `/web/cgi-bin/hi3510/ptzctrl.cgi?-step=0&-act=${act}&-speed=${spd}`;
   return httpGet(host, port || 80, path, username, password);
 }
 
 function stopCgiPtz(host, port, username, password) {
-  return sendCgiPtz(host, port, username, password, 'stop', 0.5);
+  const path = `/web/cgi-bin/hi3510/ptzctrl.cgi?-step=0&-act=stop`;
+  return httpGet(host, port || 80, path, username, password);
+}
+
+// ── CGI param.cgi (INSTAR / newer Hi3510 firmware, speed 1-63) ──────────────
+// Documented at: wiki.instar.com/720p_Series_CGI_List/System_Menu/PTZ/
+// Used by: INSTAR cameras and many rebranded Hi3510-based cameras
+
+function sendParamCgiPtz(host, port, username, password, action, speed = 0.5) {
+  const act = CGI_ACTION_MAP[action] || 'stop';
+  const spd = Math.max(1, Math.min(63, Math.round(speed * 63)));
+  const path = `/param.cgi?cmd=ptzctrl&-step=0&-act=${act}&-speed=${spd}`;
+  return httpGet(host, port || 80, path, username, password);
+}
+
+function stopParamCgiPtz(host, port, username, password) {
+  const path = `/param.cgi?cmd=ptzctrl&-step=0&-act=stop`;
+  return httpGet(host, port || 80, path, username, password);
+}
+
+function goToPresetParamCgi(host, port, username, password, number) {
+  const path = `/param.cgi?cmd=preset&-act=goto&-number=${number}`;
+  return httpGet(host, port || 80, path, username, password);
 }
 
 // ── ONVIF PTZ ────────────────────────────────────────────────────────────────
@@ -174,44 +190,58 @@ function wsSecurityHeader(username, password) {
 
 /**
  * camera object has: resolvedHost, onvif_port, username, password, ptz_protocol
+ *
+ * ptz_protocol values:
+ *   'cgi'       — Hi3510 classic  /web/cgi-bin/hi3510/ptzctrl.cgi  speed 1-10
+ *   'cgi_param' — INSTAR/param    /param.cgi?cmd=ptzctrl           speed 1-63
+ *   'onvif'     — ONVIF SOAP
+ *   'auto'      — tries cgi → cgi_param → onvif
  */
 async function movePtz(camera, action, speed = 0.5) {
   const { resolvedHost, onvif_port, username, password } = camera;
+  const port = onvif_port || 80;
   const protocol = camera.ptz_protocol || 'auto';
 
-  if (protocol === 'onvif') {
-    return sendOnvifPtz(resolvedHost, onvif_port || 80, username, password, action, speed);
-  }
-  if (protocol === 'cgi') {
-    return sendCgiPtz(resolvedHost, onvif_port || 80, username, password, action, speed);
-  }
+  if (protocol === 'onvif') return sendOnvifPtz(resolvedHost, port, username, password, action, speed);
+  if (protocol === 'cgi')   return sendCgiPtz(resolvedHost, port, username, password, action, speed);
+  if (protocol === 'cgi_param') return sendParamCgiPtz(resolvedHost, port, username, password, action, speed);
 
-  // 'auto': try CGI first (Cam720/Hi3510), fall back to ONVIF
-  try {
-    const result = await sendCgiPtz(resolvedHost, onvif_port || 80, username, password, action, speed);
-    console.log(`[PTZ] CGI success for ${resolvedHost}`);
-    return result;
-  } catch (e) {
-    console.log(`[PTZ] CGI failed (${e.message}), trying ONVIF…`);
-    return sendOnvifPtz(resolvedHost, onvif_port || 80, username, password, action, speed);
+  // auto: cgi → cgi_param → onvif
+  for (const [label, fn] of [
+    ['cgi',       () => sendCgiPtz(resolvedHost, port, username, password, action, speed)],
+    ['cgi_param', () => sendParamCgiPtz(resolvedHost, port, username, password, action, speed)],
+    ['onvif',     () => sendOnvifPtz(resolvedHost, port, username, password, action, speed)],
+  ]) {
+    try {
+      const result = await fn();
+      console.log(`[PTZ] ${label} success for ${resolvedHost}`);
+      return result;
+    } catch (e) {
+      console.log(`[PTZ] ${label} failed (${e.message}), trying next…`);
+    }
   }
+  throw new Error('Todos los protocolos PTZ fallaron');
 }
 
 async function stopPtz(camera) {
   const { resolvedHost, onvif_port, username, password } = camera;
+  const port = onvif_port || 80;
   const protocol = camera.ptz_protocol || 'auto';
 
-  if (protocol === 'onvif') {
-    return stopOnvifPtz(resolvedHost, onvif_port || 80, username, password);
-  }
-  if (protocol === 'cgi') {
-    return stopCgiPtz(resolvedHost, onvif_port || 80, username, password);
-  }
+  if (protocol === 'onvif') return stopOnvifPtz(resolvedHost, port, username, password);
+  if (protocol === 'cgi')   return stopCgiPtz(resolvedHost, port, username, password);
+  if (protocol === 'cgi_param') return stopParamCgiPtz(resolvedHost, port, username, password);
 
-  try {
-    return await stopCgiPtz(resolvedHost, onvif_port || 80, username, password);
-  } catch (e) {
-    return stopOnvifPtz(resolvedHost, onvif_port || 80, username, password);
+  for (const [label, fn] of [
+    ['cgi',       () => stopCgiPtz(resolvedHost, port, username, password)],
+    ['cgi_param', () => stopParamCgiPtz(resolvedHost, port, username, password)],
+    ['onvif',     () => stopOnvifPtz(resolvedHost, port, username, password)],
+  ]) {
+    try {
+      return await fn();
+    } catch (e) {
+      console.log(`[PTZ] stop/${label} failed (${e.message})`);
+    }
   }
 }
 
@@ -219,12 +249,20 @@ async function goToPreset(camera, presetToken) {
   const { resolvedHost, onvif_port, username, password } = camera;
   const protocol = camera.ptz_protocol || 'auto';
 
+  const port = onvif_port || 80;
   if (protocol === 'cgi') {
-    // CGI preset: GET /web/cgi-bin/hi3510/preset.cgi?-act=goto&-number=N
-    const path = `/web/cgi-bin/hi3510/preset.cgi?-act=goto&-number=${presetToken}`;
-    return httpGet(resolvedHost, onvif_port || 80, path, username, password);
+    return httpGet(resolvedHost, port, `/web/cgi-bin/hi3510/preset.cgi?-act=goto&-number=${presetToken}`, username, password);
   }
-  return goToPresetOnvif(resolvedHost, onvif_port || 80, username, password, presetToken);
+  if (protocol === 'cgi_param') {
+    return goToPresetParamCgi(resolvedHost, port, username, password, presetToken);
+  }
+  if (protocol === 'onvif') {
+    return goToPresetOnvif(resolvedHost, port, username, password, presetToken);
+  }
+  // auto: cgi → cgi_param → onvif
+  return httpGet(resolvedHost, port, `/web/cgi-bin/hi3510/preset.cgi?-act=goto&-number=${presetToken}`, username, password)
+    .catch(() => goToPresetParamCgi(resolvedHost, port, username, password, presetToken))
+    .catch(() => goToPresetOnvif(resolvedHost, port, username, password, presetToken));
 }
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────────
