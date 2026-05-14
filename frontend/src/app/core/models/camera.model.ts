@@ -14,6 +14,7 @@ export interface Camera {
   recording_enabled: 0 | 1;
   ai_enabled: 0 | 1;
   ptz_enabled: 0 | 1;
+  ptz_protocol?: 'auto' | 'cgi' | 'onvif';
   status: 'online' | 'offline';
   streaming?: boolean;
   recording?: boolean;

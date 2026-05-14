@@ -45,6 +45,7 @@ function init() {
       recording_enabled  INTEGER NOT NULL DEFAULT 1,
       ai_enabled         INTEGER NOT NULL DEFAULT 0,
       ptz_enabled        INTEGER NOT NULL DEFAULT 0,
+      ptz_protocol       TEXT NOT NULL DEFAULT 'auto' CHECK(ptz_protocol IN ('auto','cgi','onvif')),
       status             TEXT NOT NULL DEFAULT 'offline' CHECK(status IN ('online','offline','recording','error')),
       sort_order         INTEGER DEFAULT 0,
       created_at         TEXT NOT NULL DEFAULT (datetime('now')),
@@ -169,6 +170,14 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_smart_clips_camera ON smart_clips(camera_id);
     CREATE INDEX IF NOT EXISTS idx_smart_clips_status ON smart_clips(status);
   `);
+
+  // Migrations for existing databases
+  try {
+    db.prepare("SELECT ptz_protocol FROM cameras LIMIT 1").get();
+  } catch {
+    db.exec("ALTER TABLE cameras ADD COLUMN ptz_protocol TEXT NOT NULL DEFAULT 'auto'");
+    console.log('[DB] Migration: added ptz_protocol column');
+  }
 
   // Seed default admin user if none exists
   const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
