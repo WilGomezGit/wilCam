@@ -101,7 +101,13 @@ const SCENE_MAP: Record<string, string> = {
                        [style.box-shadow]="$index < onlineCams() ? '0 0 6px oklch(0.85 0.14 205/0.4)' : 'none'"></div>
                 }
               </div>
-              <div style="font-size:10.5px;color:var(--fg-3);margin-top:8px" class="mono">CAM-09 OFFLINE · ÚLT. CONEXIÓN HACE 4H</div>
+              @if (cameras().length === 0) {
+                <div style="font-size:10.5px;color:var(--fg-3);margin-top:8px" class="mono">SIN CÁMARAS CONFIGURADAS</div>
+              } @else if (onlineCams() < cameras().length) {
+                <div style="font-size:10.5px;color:var(--warn);margin-top:8px" class="mono">{{ cameras().length - onlineCams() }} OFFLINE</div>
+              } @else {
+                <div style="font-size:10.5px;color:var(--ok);margin-top:8px" class="mono">TODAS OPERATIVAS</div>
+              }
             </div>
 
             <!-- Events -->
@@ -368,23 +374,25 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { key: '4x4' as const, label: '4×4' },
   ];
 
-  readonly topCams: [string, string, number, number][] = [
-    ['CAM-02', 'Lobby', 842, 100],
-    ['CAM-05', 'Calle Frontal', 618, 73],
-    ['CAM-01', 'Estac. Norte', 522, 62],
-    ['CAM-07', 'Recepción', 411, 49],
-  ];
+  get topCams(): [string, string, number, number][] {
+    return this.cameras().slice(0, 4).map((c, i) => [
+      c.id.substring(0, 6).toUpperCase(),
+      c.name,
+      0,
+      0,
+    ]);
+  }
 
-  readonly mapPins = [
-    { x: 30, y: 30, live: true, alert: false },
-    { x: 110, y: 30, live: true, alert: true },
-    { x: 130, y: 30, live: true, alert: false },
-    { x: 210, y: 30, live: false, alert: false },
-    { x: 30, y: 90, live: true, alert: false },
-    { x: 150, y: 90, live: true, alert: false },
-    { x: 50, y: 130, live: true, alert: true },
-    { x: 200, y: 130, live: false, alert: false },
-  ];
+  get mapPins() {
+    const xs = [30, 110, 180, 210, 50, 150, 30, 200];
+    const ys = [30, 30, 40, 80, 90, 90, 130, 130];
+    return this.cameras().slice(0, 8).map((c, i) => ({
+      x: xs[i] ?? 60 + i * 30,
+      y: ys[i] ?? 60,
+      live: c.status === 'online',
+      alert: false,
+    }));
+  }
 
   readonly sparkValues = [4,6,3,8,12,7,9,11,15,8,12,16];
   readonly netValues   = [80,90,100,130,150,140,170,160,200,184,176,184];
@@ -397,7 +405,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onlineCams() { return this.cameras().filter(c => c.status === 'online').length; }
-  camSlots()   { return Array.from({ length: this.cameras().length || 12 }); }
+  camSlots()   { return Array.from({ length: this.cameras().length || 1 }); }
 
   gridCols() {
     return this.gridMode() === '4x4' ? 4 : this.gridMode() === '2x2' ? 2 : 3;
