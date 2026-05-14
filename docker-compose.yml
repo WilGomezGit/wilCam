@@ -50,6 +50,8 @@ services:
       - "3000:3000"
     networks:
       - wilcam-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy
