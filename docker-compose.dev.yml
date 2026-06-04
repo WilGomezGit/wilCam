@@ -1,0 +1,40 @@
+version: '3.9'
+
+# Development override — mounts source for hot-reload
+services:
+  redis:
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      target: base
+    environment:
+      NODE_ENV: development
+      AUTO_START_STREAMS: 'false'
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - wilcam_data:/data
+    command: npx nodemon src/index.js
+    ports:
+      - "3000:3000"
+
+  ai-service:
+    volumes:
+      - ./ai-service:/app
+      - ai_models:/models
+    environment:
+      RELOAD: "true"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      target: deps
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npx ng serve --host 0.0.0.0 --port 4200 --proxy-config proxy.conf.json
+    ports:
+      - "4200:4200"

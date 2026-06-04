@@ -76,15 +76,15 @@ router.post('/', verifyToken, cameraValidators, validate, (req, res, next) => {
       name, rtsp_url, location = '', group_name = 'default',
       onvif_host, onvif_port = 80, username = '', password = '',
       resolution = 'HD', fps = 15, codec = 'h264',
-      recording_enabled = 1, ai_enabled = 0, ptz_enabled = 0,
+      recording_enabled = 1, ai_enabled = 0, ptz_enabled = 0, ptz_protocol = 'auto',
     } = req.body;
     db.prepare(`
       INSERT INTO cameras (id, name, rtsp_url, location, group_name, onvif_host, onvif_port,
-        username, password, resolution, fps, codec, recording_enabled, ai_enabled, ptz_enabled)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        username, password, resolution, fps, codec, recording_enabled, ai_enabled, ptz_enabled, ptz_protocol)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, name, rtsp_url, location, group_name, onvif_host || null, onvif_port,
         username, password, resolution, fps, codec,
-        recording_enabled ? 1 : 0, ai_enabled ? 1 : 0, ptz_enabled ? 1 : 0);
+        recording_enabled ? 1 : 0, ai_enabled ? 1 : 0, ptz_enabled ? 1 : 0, ptz_protocol);
     const camera = db.prepare('SELECT * FROM cameras WHERE id = ?').get(id);
     socketService.emitCameraStatus(id, 'offline');
     res.status(201).json({ ...camera, password: undefined });
@@ -97,7 +97,7 @@ router.put('/:id', verifyToken, cameraValidators.map(v => v.optional()), validat
     const cam = db.prepare('SELECT * FROM cameras WHERE id = ?').get(req.params.id);
     if (!cam) return res.status(404).json({ error: 'Cámara no encontrada' });
     const fields = ['name','rtsp_url','location','group_name','onvif_host','onvif_port',
-      'username','password','resolution','fps','codec','recording_enabled','ai_enabled','ptz_enabled','sort_order'];
+      'username','password','resolution','fps','codec','recording_enabled','ai_enabled','ptz_enabled','ptz_protocol','sort_order'];
     const updates = {};
     fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
     if (Object.keys(updates).length === 0) {

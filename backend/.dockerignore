@@ -1,0 +1,14 @@
+node_modules
+.npm
+.env
+.env.*
+!.env.example
+*.log
+public/hls/*
+public/recordings/*
+public/snapshots/*
+public/cloud/*
+*.db
+*.db-*
+coverage
+.nyc_output

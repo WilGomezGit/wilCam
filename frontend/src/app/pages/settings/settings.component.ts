@@ -1,243 +1,487 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CameraFeedComponent } from '../../shared/components/camera-feed/camera-feed.component';
 import { TopbarComponent } from '../../shared/components/topbar/topbar.component';
+import { CameraService } from '../../core/services/camera.service';
+import { AuthService } from '../../core/services/auth.service';
+import { Camera } from '../../core/models/camera.model';
 
-type CameraScene = 'parking' | 'entrance' | 'office' | 'warehouse' | 'rooftop' | 'hallway' | 'street' | 'reception' | 'loading';
-
-interface CameraRow {
-  id: string;
-  name: string;
-  ip: string;
-  resolution: string;
-  recording: boolean;
-  ai: boolean;
-  scene: CameraScene;
-  online: boolean;
+function extractIp(rtspUrl: string): string {
+  try {
+    const match = rtspUrl.match(/@([^:/]+)/);
+    return match ? match[1] : rtspUrl.replace(/^rtsp:\/\/[^@]*@?/, '').split(':')[0];
+  } catch { return '—'; }
 }
 
 @Component({
   selector: 'wc-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, CameraFeedComponent, TopbarComponent],
+  imports: [CommonModule, FormsModule, TopbarComponent],
   template: `
     <div style="display:flex;flex-direction:column;height:100%;min-height:0">
-      <wc-topbar title="Configuración" subtitle="GESTIÓN DEL SISTEMA">
-        <button class="btn ghost">Restablecer</button>
-        <button class="btn primary">Guardar cambios</button>
+      <wc-topbar title="Configuración" subtitle="GESTIÓN DE CÁMARAS">
+        <button class="btn ghost" (click)="loadCameras()">Actualizar</button>
       </wc-topbar>
 
-      <div style="flex:1;display:grid;grid-template-columns:220px 1fr;min-height:0">
-        <!-- Settings nav -->
-        <nav style="padding:16px 12px;border-right:1px solid var(--line-1);display:flex;flex-direction:column;gap:2px">
-          @for (item of navItems; track item.l) {
-            <div class="sb-item" [class.active]="activeSection === item.l" (click)="activeSection = item.l">
-              <span [style.color]="activeSection === item.l ? 'var(--accent-2)' : 'var(--fg-2)'">
-                <ng-container [ngSwitch]="item.icon">
-                  <svg *ngSwitchCase="'cam'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM15 10l6-3v10l-6-3z"/></svg>
-                  <svg *ngSwitchCase="'rec'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
-                  <svg *ngSwitchCase="'zap'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  <svg *ngSwitchCase="'bell'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                  <svg *ngSwitchCase="'user'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  <svg *ngSwitchCase="'hd'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10v4"/><path d="M18 10v4"/><path d="M14 12h4"/></svg>
-                  <svg *ngSwitchCase="'wifi'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-                  <svg *ngSwitchDefault width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                </ng-container>
-              </span>
-              <span>{{ item.l }}</span>
-            </div>
-          }
-        </nav>
-
-        <!-- Main settings content -->
-        <div style="padding:24px;overflow:auto">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-            <div>
-              <div style="font-size:16px;font-weight:600">Gestión de cámaras</div>
-              <div style="font-size:12px;color:var(--fg-3);margin-top:2px">Añade, edita o elimina cámaras IP conectadas al NVR</div>
-            </div>
-            <div style="display:flex;gap:8px">
-              <button class="btn">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                Escanear red
-              </button>
-              <button class="btn primary" (click)="showAddForm = !showAddForm">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Añadir RTSP
-              </button>
+      <div style="flex:1;padding:20px 24px;overflow:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div>
+            <div style="font-size:15px;font-weight:600">Cámaras IP</div>
+            <div style="font-size:12px;color:var(--fg-3);margin-top:2px">
+              {{ cameras().length }} cámara{{ cameras().length !== 1 ? 's' : '' }} registrada{{ cameras().length !== 1 ? 's' : '' }}
             </div>
           </div>
+          <button class="btn primary" (click)="showAddForm = !showAddForm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Añadir cámara
+          </button>
+        </div>
 
-          <!-- Add RTSP form -->
-          @if (showAddForm) {
-            <div class="glass" style="padding:18px;margin-bottom:18px">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-2)" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <div style="font-size:13px;font-weight:600">Nueva cámara</div>
-                <span class="chip acc" style="margin-left:auto">BORRADOR</span>
-              </div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
-                <label style="display:flex;flex-direction:column;gap:5px">
-                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">NOMBRE</span>
-                  <input type="text" [(ngModel)]="newCam.name" placeholder="CAM-10 · Patio Trasero">
-                </label>
-                <label style="display:flex;flex-direction:column;gap:5px">
-                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">UBICACIÓN</span>
-                  <input type="text" [(ngModel)]="newCam.location" placeholder="Edificio A · Planta 1">
-                </label>
-                <label style="display:flex;flex-direction:column;gap:5px">
-                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">GRUPO</span>
-                  <select [(ngModel)]="newCam.group">
-                    <option value="exterior">Exterior</option>
-                    <option value="interior">Interior</option>
-                  </select>
-                </label>
-                <label style="grid-column:span 3;display:flex;flex-direction:column;gap:5px">
-                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">URL RTSP</span>
-                  <input type="text" [(ngModel)]="newCam.rtsp" placeholder="rtsp://admin:password@192.168.1.50:554/stream">
-                </label>
-                <label style="display:flex;flex-direction:column;gap:5px">
-                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">USUARIO</span>
-                  <input type="text" [(ngModel)]="newCam.user" placeholder="admin">
-                </label>
-                <label style="display:flex;flex-direction:column;gap:5px">
-                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">CONTRASEÑA</span>
-                  <input type="password" [(ngModel)]="newCam.password">
-                </label>
-                <label style="display:flex;flex-direction:column;gap:5px">
-                  <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.16em">RESOLUCIÓN</span>
-                  <select [(ngModel)]="newCam.resolution">
-                    <option value="4k">3840 × 2160 (4K)</option>
-                    <option value="hd">1920 × 1080</option>
-                  </select>
-                </label>
-              </div>
-              <div style="margin-top:14px;display:flex;align-items:center;gap:14px">
-                <button class="btn ghost" (click)="testConnection()">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  Probar conexión
-                </button>
-                @if (connectionTested) {
-                  <span class="chip ok">Conexión exitosa · 142ms</span>
-                }
-                <div style="margin-left:auto;display:flex;gap:8px">
-                  <button class="btn ghost" (click)="showAddForm = false">Cancelar</button>
-                  <button class="btn primary" (click)="addCamera()">Añadir cámara</button>
+        <!-- Add form -->
+        @if (showAddForm) {
+          <div class="glass" style="padding:18px;margin-bottom:20px;border-radius:12px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:14px">Nueva cámara</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+              <label class="field">
+                <span>NOMBRE *</span>
+                <input type="text" [(ngModel)]="newCam.name" placeholder="Cámara Entrada">
+              </label>
+              <label class="field">
+                <span>UBICACIÓN</span>
+                <input type="text" [(ngModel)]="newCam.location" placeholder="Edificio A · Planta 1">
+              </label>
+              <label class="field">
+                <span>RESOLUCIÓN</span>
+                <select [(ngModel)]="newCam.resolution">
+                  <option value="4K">4K</option>
+                  <option value="HD">HD</option>
+                  <option value="720p">720p</option>
+                </select>
+              </label>
+              <label class="field" style="grid-column:span 3">
+                <span>URL RTSP *</span>
+                <input type="text" [(ngModel)]="newCam.rtsp"
+                       placeholder="rtsp://admin:password@192.168.1.50:554/stream">
+              </label>
+              <label class="field">
+                <span>USUARIO</span>
+                <input type="text" [(ngModel)]="newCam.username" placeholder="admin">
+              </label>
+              <label class="field">
+                <span>CONTRASEÑA</span>
+                <input type="password" [(ngModel)]="newCam.password">
+              </label>
+              <label class="field">
+                <span>HOST ONVIF</span>
+                <input type="text" [(ngModel)]="newCam.onvif_host" placeholder="(auto desde URL RTSP)">
+              </label>
+              <label class="field">
+                <span>PUERTO PTZ/ONVIF</span>
+                <input type="number" [(ngModel)]="newCam.onvif_port" placeholder="80">
+              </label>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.14em">PTZ</span>
+                <div style="display:flex;align-items:center;gap:10px;height:36px">
+                  <span class="switch" [class.on]="newCam.ptz_enabled" (click)="newCam.ptz_enabled = !newCam.ptz_enabled"></span>
+                  <span style="font-size:12px;color:var(--fg-2)">{{ newCam.ptz_enabled ? 'Habilitado' : 'Deshabilitado' }}</span>
                 </div>
               </div>
+              @if (newCam.ptz_enabled) {
+                <label class="field">
+                  <span>PROTOCOLO PTZ</span>
+                  <select [(ngModel)]="newCam.ptz_protocol">
+                    <option value="auto">Auto (detectar automáticamente)</option>
+                    <option value="cgi">CGI Hi3510 clásico</option>
+                    <option value="cgi_param">CGI param.cgi (INSTAR / Cam720)</option>
+                    <option value="onvif">ONVIF SOAP</option>
+                  </select>
+                </label>
+              }
             </div>
-          }
 
-          <!-- Camera list -->
-          <div class="panel" style="overflow:hidden">
+            <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
+              <button class="btn ghost" (click)="testConnection()" [disabled]="testingConnection || !newCam.rtsp">
+                {{ testingConnection ? 'Probando…' : 'Probar RTSP' }}
+              </button>
+              @if (connectionTested) {
+                <span class="chip ok">OK · {{ connectionLatency }}ms</span>
+              }
+              @if (connectionError) {
+                <span class="chip warn">Sin conexión</span>
+              }
+              <div style="margin-left:auto;display:flex;gap:8px">
+                <button class="btn ghost" (click)="cancelAdd()">Cancelar</button>
+                <button class="btn primary" (click)="addCamera()"
+                        [disabled]="savingCamera || !newCam.name || !newCam.rtsp">
+                  {{ savingCamera ? 'Guardando…' : 'Añadir' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Camera table -->
+        <div class="panel" style="overflow:hidden">
+          @if (loading()) {
+            <div style="padding:32px;text-align:center;color:var(--fg-3);font-size:12px">Cargando…</div>
+          } @else if (cameras().length === 0) {
+            <div style="padding:32px;text-align:center;color:var(--fg-3);font-size:12px">
+              No hay cámaras. Haz clic en "Añadir cámara" para empezar.
+            </div>
+          } @else {
             <table class="evt">
               <thead>
                 <tr>
                   <th>Cámara</th>
                   <th>Estado</th>
                   <th>IP</th>
-                  <th>Resolución</th>
-                  <th>Grabación</th>
-                  <th>IA</th>
+                  <th>Res.</th>
+                  <th>Grab.</th>
+                  <th>PTZ</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                @for (cam of cameras; track cam.id) {
-                  <tr>
-                    <td>
-                      <div style="display:flex;align-items:center;gap:10px">
-                        <div style="width:42px;height:26px;border-radius:3px;overflow:hidden;border:1px solid var(--line-1)">
-                          <wc-camera-feed [scene]="cam.scene" name="" [status]="cam.online ? 'live' : 'offline'" quality="" tc=""
-                            [feedStyle]="{'width':'100%','height':'100%'}"></wc-camera-feed>
+                @for (cam of cameras(); track cam.id) {
+                  @if (editingId() === cam.id) {
+                    <tr style="background:oklch(0.65 0.25 250/0.05)">
+                      <td colspan="7" style="padding:14px">
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">
+                          <label class="field">
+                            <span>NOMBRE</span>
+                            <input type="text" [(ngModel)]="editCam.name" style="padding:6px 8px;font-size:12px">
+                          </label>
+                          <label class="field">
+                            <span>UBICACIÓN</span>
+                            <input type="text" [(ngModel)]="editCam.location" style="padding:6px 8px;font-size:12px">
+                          </label>
+                          <label class="field">
+                            <span>RESOLUCIÓN</span>
+                            <select [(ngModel)]="editCam.resolution" style="padding:6px 8px;font-size:12px">
+                              <option value="4K">4K</option>
+                              <option value="HD">HD</option>
+                              <option value="720p">720p</option>
+                            </select>
+                          </label>
+                          <label class="field" style="grid-column:span 2">
+                            <span>URL RTSP</span>
+                            <input type="text" [(ngModel)]="editCam.rtsp" style="padding:6px 8px;font-size:12px">
+                          </label>
+                          <label class="field">
+                            <span>NUEVA CONTRASEÑA</span>
+                            <input type="password" [(ngModel)]="editCam.password"
+                                   placeholder="(sin cambios)" style="padding:6px 8px;font-size:12px">
+                          </label>
+                          <label class="field">
+                            <span>HOST ONVIF</span>
+                            <input type="text" [(ngModel)]="editCam.onvif_host" style="padding:6px 8px;font-size:12px">
+                          </label>
+                          <label class="field">
+                            <span>PUERTO PTZ</span>
+                            <input type="number" [(ngModel)]="editCam.onvif_port" style="padding:6px 8px;font-size:12px">
+                          </label>
+                          <div style="display:flex;flex-direction:column;gap:6px">
+                            <span class="mono" style="font-size:9px;color:var(--fg-3);letter-spacing:0.14em">PTZ</span>
+                            <div style="display:flex;align-items:center;gap:10px;height:36px">
+                              <span class="switch" [class.on]="editCam.ptz_enabled" (click)="editCam.ptz_enabled = !editCam.ptz_enabled"></span>
+                            </div>
+                          </div>
+                          @if (editCam.ptz_enabled) {
+                            <label class="field">
+                              <span>PROTOCOLO PTZ</span>
+                              <select [(ngModel)]="editCam.ptz_protocol" style="padding:6px 8px;font-size:12px">
+                                <option value="auto">Auto (CGI → ONVIF)</option>
+                                <option value="cgi">HTTP CGI (Cam720)</option>
+                                <option value="onvif">ONVIF SOAP</option>
+                              </select>
+                            </label>
+                          }
                         </div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end">
+                          <button class="btn ghost" (click)="cancelEdit()">Cancelar</button>
+                          <button class="btn primary" (click)="saveEdit(cam)">Guardar</button>
+                        </div>
+                      </td>
+                    </tr>
+                  } @else {
+                    <tr>
+                      <td>
                         <div>
-                          <div class="mono" style="font-size:11px;color:var(--accent-2)">{{ cam.id }}</div>
+                          <div class="mono" style="font-size:10px;color:var(--accent-2)">{{ cam.id.substring(0,8).toUpperCase() }}</div>
                           <div style="font-size:12px;color:var(--fg-1)">{{ cam.name }}</div>
+                          @if (cam.location) {
+                            <div style="font-size:11px;color:var(--fg-3)">{{ cam.location }}</div>
+                          }
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      @if (cam.online) {
-                        <span class="chip ok">
-                          <span style="width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor"></span>
-                          Online
-                        </span>
-                      } @else {
-                        <span class="chip warn">
-                          <span style="width:5px;height:5px;border-radius:50%;background:currentColor"></span>
-                          Offline
-                        </span>
-                      }
-                    </td>
-                    <td class="mono" style="color:var(--fg-2)">{{ cam.ip }}</td>
-                    <td class="mono">{{ cam.resolution }}</td>
-                    <td>
-                      <span class="switch" [class.on]="cam.recording" (click)="cam.recording = !cam.recording"></span>
-                    </td>
-                    <td>
-                      <span class="switch" [class.on]="cam.ai" (click)="cam.ai = !cam.ai"></span>
-                    </td>
-                    <td style="text-align:right">
-                      <button class="btn icon ghost" style="width:28px;height:28px">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button class="btn icon ghost" style="width:28px;height:28px;color:var(--danger)">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                      </button>
-                    </td>
-                  </tr>
+                      </td>
+                      <td>
+                        @if (cam.status === 'online') {
+                          <span class="chip ok">
+                            <span style="width:5px;height:5px;border-radius:50%;background:currentColor"></span>Online
+                          </span>
+                        } @else {
+                          <span class="chip warn">
+                            <span style="width:5px;height:5px;border-radius:50%;background:currentColor"></span>Offline
+                          </span>
+                        }
+                      </td>
+                      <td class="mono" style="color:var(--fg-2);font-size:11px">{{ extractIp(cam.rtsp_url) }}</td>
+                      <td class="mono">{{ cam.resolution }}</td>
+                      <td>
+                        <span class="switch" [class.on]="cam.recording_enabled === 1"
+                              (click)="toggleField(cam, 'recording_enabled')"></span>
+                      </td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:6px">
+                          <span class="switch" [class.on]="cam.ptz_enabled === 1"
+                                (click)="toggleField(cam, 'ptz_enabled')"></span>
+                          @if (cam.ptz_enabled === 1) {
+                            <span class="mono" style="font-size:9px;color:var(--fg-3)">
+                              {{ (cam.ptz_protocol || 'auto').toUpperCase() }}
+                            </span>
+                          }
+                        </div>
+                      </td>
+                      <td style="text-align:right">
+                        <button class="btn icon ghost" style="width:28px;height:28px" (click)="startEdit(cam)" title="Editar">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                        <button class="btn icon ghost" style="width:28px;height:28px;color:var(--danger)"
+                                (click)="deleteCamera(cam)" title="Eliminar">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  }
                 }
               </tbody>
             </table>
+          }
+        </div>
+
+        <!-- Change password -->
+        <div style="margin-top:32px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px">Cambiar contraseña</div>
+          <div style="font-size:12px;color:var(--fg-3);margin-bottom:16px">Actualiza tu contraseña de acceso al sistema.</div>
+          <div class="glass" style="padding:18px;border-radius:12px;max-width:480px">
+            @if (pwdSuccess()) {
+              <div style="padding:10px 12px;background:oklch(0.18 0.04 155/0.5);border:1px solid oklch(0.55 0.17 155/0.4);border-radius:var(--r-sm);font-size:12px;color:var(--ok);margin-bottom:14px;display:flex;align-items:center;gap:8px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Contraseña actualizada correctamente.
+              </div>
+            }
+            @if (pwdError()) {
+              <div style="padding:10px 12px;background:oklch(0.22 0.06 25/0.8);border:1px solid oklch(0.55 0.18 25/0.4);border-radius:var(--r-sm);font-size:12px;color:oklch(0.85 0.15 25);margin-bottom:14px">
+                {{ pwdError() }}
+              </div>
+            }
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <label class="field">
+                <span>CONTRASEÑA ACTUAL</span>
+                <input type="password" [(ngModel)]="pwdCurrent" [disabled]="pwdSaving()" autocomplete="current-password">
+              </label>
+              <label class="field">
+                <span>NUEVA CONTRASEÑA (mín. 8 caracteres)</span>
+                <input type="password" [(ngModel)]="pwdNew" [disabled]="pwdSaving()" autocomplete="new-password">
+              </label>
+              <label class="field">
+                <span>CONFIRMAR NUEVA CONTRASEÑA</span>
+                <input type="password" [(ngModel)]="pwdConfirm" [disabled]="pwdSaving()" autocomplete="new-password">
+              </label>
+            </div>
+            <button class="btn primary" (click)="changePassword()" [disabled]="pwdSaving()"
+                    style="margin-top:16px;padding:10px 20px">
+              @if (pwdSaving()) {
+                <span style="display:flex;align-items:center;gap:8px">
+                  <span style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block"></span>
+                  Guardando…
+                </span>
+              } @else {
+                Cambiar contraseña
+              }
+            </button>
           </div>
         </div>
       </div>
     </div>
   `,
-  styles: []
+  styles: [`
+    .field { display:flex;flex-direction:column;gap:4px; }
+    .field span { font-size:9px;color:var(--fg-3);letter-spacing:0.14em;font-family:monospace; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  `]
 })
-export class SettingsComponent {
-  activeSection = 'Cámaras';
+export class SettingsComponent implements OnInit {
+  private cameraService = inject(CameraService);
+  private auth = inject(AuthService);
+
   showAddForm = false;
   connectionTested = false;
+  connectionError = false;
+  connectionLatency = 0;
+  testingConnection = false;
+  savingCamera = false;
 
-  readonly navItems = [
-    { l: 'Cámaras', icon: 'cam' },
-    { l: 'Grabación', icon: 'rec' },
-    { l: 'Detección IA', icon: 'zap' },
-    { l: 'Notificaciones', icon: 'bell' },
-    { l: 'Usuarios', icon: 'user' },
-    { l: 'Almacenamiento', icon: 'hd' },
-    { l: 'Red', icon: 'wifi' },
-    { l: 'Sistema', icon: 'cog' },
-  ];
+  loading = signal(false);
+  cameras = signal<Camera[]>([]);
+  editingId = signal<string | null>(null);
 
-  cameras: CameraRow[] = [
-    { id: 'CAM-01', name: 'Estacionamiento N.', ip: '192.168.1.41', resolution: '4K', recording: true, ai: true, scene: 'parking', online: true },
-    { id: 'CAM-02', name: 'Lobby Principal', ip: '192.168.1.42', resolution: '4K', recording: true, ai: true, scene: 'entrance', online: true },
-    { id: 'CAM-03', name: 'Oficinas P2', ip: '192.168.1.43', resolution: 'HD', recording: true, ai: false, scene: 'office', online: true },
-    { id: 'CAM-04', name: 'Almacén A', ip: '192.168.1.44', resolution: '4K', recording: true, ai: true, scene: 'warehouse', online: true },
-    { id: 'CAM-09', name: 'Azotea', ip: '192.168.1.49', resolution: 'HD', recording: false, ai: false, scene: 'rooftop', online: false },
-  ];
+  pwdCurrent = '';
+  pwdNew = '';
+  pwdConfirm = '';
+  pwdSaving = signal(false);
+  pwdError = signal('');
+  pwdSuccess = signal(false);
 
   newCam = {
-    name: 'CAM-10 · Patio Trasero',
-    location: 'Edificio A · Planta 1',
-    group: 'exterior',
-    rtsp: 'rtsp://admin:••••••@192.168.1.50:554/Streaming/Channels/101',
-    user: 'admin',
-    password: '',
-    resolution: '4k',
+    name: '', location: '', rtsp: '', username: '', password: '',
+    onvif_host: '', onvif_port: 80, resolution: 'HD',
+    ptz_enabled: false, ptz_protocol: 'auto',
+  };
+  editCam = {
+    name: '', location: '', rtsp: '', username: '', password: '', resolution: '',
+    onvif_host: '', onvif_port: 80, ptz_enabled: false, ptz_protocol: 'auto',
   };
 
+  ngOnInit(): void { this.loadCameras(); }
+
+  loadCameras(): void {
+    this.loading.set(true);
+    this.cameraService.getAll().subscribe({
+      next: cams => { this.cameras.set(cams); this.loading.set(false); },
+      error: () => this.loading.set(false),
+    });
+  }
+
+  extractIp(rtspUrl: string): string { return extractIp(rtspUrl); }
+
   testConnection(): void {
-    this.connectionTested = true;
+    if (!this.newCam.rtsp) return;
+    this.testingConnection = true;
+    this.connectionTested = false;
+    this.connectionError = false;
+    this.cameraService.testConnection(this.newCam.rtsp).subscribe({
+      next: res => {
+        this.connectionTested = !!res.success;
+        this.connectionError = !res.success;
+        this.connectionLatency = res.latencyMs || 0;
+        this.testingConnection = false;
+      },
+      error: () => { this.connectionError = true; this.testingConnection = false; },
+    });
   }
 
   addCamera(): void {
+    if (!this.newCam.name || !this.newCam.rtsp) return;
+    this.savingCamera = true;
+    this.cameraService.create({
+      name: this.newCam.name,
+      location: this.newCam.location,
+      rtsp_url: this.newCam.rtsp,
+      username: this.newCam.username || undefined,
+      password: this.newCam.password || undefined,
+      onvif_host: this.newCam.onvif_host || undefined,
+      onvif_port: this.newCam.onvif_port || 80,
+      resolution: this.newCam.resolution,
+      recording_enabled: 1,
+      ai_enabled: 0,
+      ptz_enabled: this.newCam.ptz_enabled ? 1 : 0,
+      ptz_protocol: this.newCam.ptz_protocol as 'auto' | 'cgi' | 'onvif',
+    }).subscribe({
+      next: () => { this.cancelAdd(); this.loadCameras(); },
+      error: () => { this.savingCamera = false; },
+    });
+  }
+
+  cancelAdd(): void {
     this.showAddForm = false;
     this.connectionTested = false;
+    this.connectionError = false;
+    this.savingCamera = false;
+    this.newCam = {
+      name: '', location: '', rtsp: '', username: '', password: '',
+      onvif_host: '', onvif_port: 80, resolution: 'HD',
+      ptz_enabled: false, ptz_protocol: 'auto',
+    };
+  }
+
+  startEdit(cam: Camera): void {
+    this.editingId.set(cam.id);
+    this.editCam = {
+      name: cam.name,
+      location: cam.location || '',
+      rtsp: cam.rtsp_url,
+      username: cam.username || '',
+      password: '',
+      resolution: cam.resolution,
+      onvif_host: cam.onvif_host || '',
+      onvif_port: cam.onvif_port || 80,
+      ptz_enabled: cam.ptz_enabled === 1,
+      ptz_protocol: cam.ptz_protocol || 'auto',
+    };
+  }
+
+  saveEdit(cam: Camera): void {
+    const payload: Partial<Camera> = {
+      name: this.editCam.name,
+      location: this.editCam.location,
+      rtsp_url: this.editCam.rtsp,
+      username: this.editCam.username || undefined,
+      resolution: this.editCam.resolution,
+      onvif_host: this.editCam.onvif_host || undefined,
+      onvif_port: this.editCam.onvif_port || 80,
+      ptz_enabled: this.editCam.ptz_enabled ? 1 : 0,
+      ptz_protocol: this.editCam.ptz_protocol as 'auto' | 'cgi' | 'onvif',
+    };
+    if (this.editCam.password) (payload as any).password = this.editCam.password;
+    this.cameraService.update(cam.id, payload).subscribe({
+      next: () => { this.editingId.set(null); this.loadCameras(); },
+    });
+  }
+
+  cancelEdit(): void { this.editingId.set(null); }
+
+  deleteCamera(cam: Camera): void {
+    if (!confirm(`¿Eliminar "${cam.name}"? Esta acción no se puede deshacer.`)) return;
+    this.cameraService.delete(cam.id).subscribe({ next: () => this.loadCameras() });
+  }
+
+  changePassword(): void {
+    this.pwdError.set('');
+    this.pwdSuccess.set(false);
+    if (!this.pwdCurrent) { this.pwdError.set('Ingresa tu contraseña actual.'); return; }
+    if (this.pwdNew.length < 8) { this.pwdError.set('La nueva contraseña debe tener mínimo 8 caracteres.'); return; }
+    if (this.pwdNew !== this.pwdConfirm) { this.pwdError.set('Las contraseñas no coinciden.'); return; }
+    this.pwdSaving.set(true);
+    this.auth.changePassword(this.pwdCurrent, this.pwdNew).subscribe({
+      next: () => {
+        this.pwdSaving.set(false);
+        this.pwdSuccess.set(true);
+        this.pwdCurrent = '';
+        this.pwdNew = '';
+        this.pwdConfirm = '';
+      },
+      error: err => {
+        this.pwdSaving.set(false);
+        this.pwdError.set(err?.error?.error || 'Error al cambiar la contraseña.');
+      },
+    });
+  }
+
+  toggleField(cam: Camera, field: 'recording_enabled' | 'ptz_enabled'): void {
+    const val = cam[field] ? 0 : 1;
+    this.cameraService.update(cam.id, { [field]: val }).subscribe({
+      next: updated => {
+        this.cameras.update(list => list.map(c => c.id === cam.id ? { ...c, [field]: updated[field] } : c));
+      },
+    });
   }
 }

@@ -1,0 +1,19 @@
+apiVersion: v2
+name: wilcam
+description: WilCam AI Cloud Video Surveillance Platform
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+  - surveillance
+  - camera
+  - ai
+  - cctv
+maintainers:
+  - name: WilGomez
+    url: https://github.com/wilgomezgit
+dependencies:
+  - name: redis
+    version: "18.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

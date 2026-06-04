@@ -1,0 +1,99 @@
+global:
+  imageRegistry: ghcr.io/wilgomezgit
+  imagePullPolicy: Always
+
+backend:
+  image:
+    repository: wilcam-backend
+    tag: latest
+  replicaCount: 2
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    cpuUtilization: 70
+  config:
+    nodeEnv: production
+    enableAI: true
+    enableWebRTC: false
+    autoStartStreams: false
+  secrets:
+    jwtSecret: ""
+    jwtRefreshSecret: ""
+    awsAccessKeyId: ""
+    awsSecretAccessKey: ""
+    fcmServerKey: ""
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+
+aiService:
+  enabled: true
+  image:
+    repository: wilcam-ai
+    tag: latest
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  config:
+    device: cpu
+    confidenceThreshold: "0.5"
+  persistence:
+    modelSize: 2Gi
+
+frontend:
+  image:
+    repository: wilcam-frontend
+    tag: latest
+  replicaCount: 2
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 2Gi
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "320Mi"
+        cpu: "200m"
+
+ingress:
+  enabled: true
+  className: nginx
+  host: wilcam.example.com
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt-prod
+
+monitoring:
+  enabled: false
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
